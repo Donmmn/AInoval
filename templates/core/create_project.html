@@ -1,0 +1,14 @@
+{% extends 'core/base.html' %}
+
+{% block title %}新建小说项目{% endblock %}
+
+{% block content %}
+<h2>新建小说项目</h2>
+<form method="post">
+    {% csrf_token %}
+    {# Render form fields using bootstrap classes potentially added in forms.py #}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">创建</button>
+    <a href="{% url 'dashboard' %}" class="btn btn-secondary">取消</a>
+</form>
+{% endblock %} 

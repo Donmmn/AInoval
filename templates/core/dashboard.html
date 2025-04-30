@@ -1,0 +1,77 @@
+{% extends 'core/base.html' %}
+{% load core_tags %} {# Load custom template tags #}
+
+{% block title %}仪表盘{% endblock %}
+
+{% block content %}
+<h2>欢迎, {{ user.username }}!</h2>
+
+<div class="row mt-4">
+    <!-- Novel Projects -->
+    <div class="col-md-6">
+        <h3 class="section-title">我的小说项目</h3>
+        <a href="{% url 'create_project' %}" class="btn btn-success mb-3">新建项目</a>
+        {% if projects %}
+            <ul class="list-group">
+                {% for project in projects %}
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">
+                          <div class="fw-bold">{{ project.title }}</div>
+                          <small class="text-muted">创建于: {{ project.created_at|date:"Y-m-d H:i" }}</small>
+                          <!-- Display project file list -->
+                          {% with project_id_str=project.id|stringformat:"s" %}
+                            {% with files=project_files|get_item:project.id %}
+                                {% if files %}
+                                <ul class="list-unstyled mt-2" style="font-size: 0.9em;">
+                                {% for file_name in files %}
+                                    <li>
+                                      <!-- TODO: Add link to view/edit file content -->
+                                      <a href="#" class="text-decoration-none link-secondary">{{ file_name }}</a>
+                                    </li>
+                                {% endfor %}
+                                 <li><a href="#" class="text-success small">+ 添加文件</a></li> {# TODO: Link to add file functionality #}
+                                </ul>
+                              {% else %}
+                                 <p class="text-muted small mt-2">暂无文件. <a href="#" class="text-success small">+ 添加文件</a></p> {# TODO: Link to add file functionality #}
+                              {% endif %}
+                            {% endwith %}
+                          {% endwith %}
+                        </div>
+                        <!-- TODO: Add edit/delete project buttons -->
+                        <!-- <a href="#" class="btn btn-sm btn-outline-secondary me-1">编辑</a>
+                        <button class="btn btn-sm btn-outline-danger">删除</button> -->
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>你还没有创建任何小说项目。</p>
+        {% endif %}
+    </div>
+
+    <!-- Writing Templates -->
+    <div class="col-md-6">
+        <h3 class="section-title">我的写作模板</h3>
+         <a href="{% url 'create_template' %}" class="btn btn-info mb-3">新建模板</a>
+        {% if templates %}
+            <ul class="list-group">
+                 {% for template in templates %}
+                     <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">
+                            <div class="fw-bold">{{ template.name }}</div>
+                            {% if template.outline %}<small class="d-block text-muted">大纲: {{ template.outline|truncatewords:15 }}</small>{% endif %}
+                            {% if template.style_prompt %}<small class="d-block text-muted">文风: {{ template.style_prompt|truncatewords:15 }}</small>{% endif %}
+                        </div>
+                         <!-- TODO: Add edit/delete template buttons -->
+                         <!-- <a href="#" class="btn btn-sm btn-outline-secondary me-1">编辑</a>
+                         <button class="btn btn-sm btn-outline-danger">删除</button> -->
+                    </li>
+                 {% endfor %}
+            </ul>
+             <a href="{% url 'template_list' %}" class="btn btn-link mt-2">查看所有模板</a>
+        {% else %}
+             <p>你还没有创建任何写作模板。</p>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %} 

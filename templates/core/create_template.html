@@ -1,0 +1,13 @@
+{% extends 'core/base.html' %}
+
+{% block title %}新建模板{% endblock %}
+
+{% block content %}
+<h2>新建写作模板</h2>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">创建</button>
+    <a href="{% url 'template_list' %}" class="btn btn-secondary">取消</a>
+</form>
+{% endblock %} 

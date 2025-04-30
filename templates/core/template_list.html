@@ -1,0 +1,39 @@
+{% extends 'core/base.html' %}
+
+{% block title %}我的写作模板{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>我的写作模板</h2>
+    <a href="{% url 'create_template' %}" class="btn btn-primary">新建模板</a>
+</div>
+
+{% if templates %}
+    <div class="list-group">
+        {% for template in templates %}
+            <div class="list-group-item list-group-item-action flex-column align-items-start mb-2">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">{{ template.name }}</h5>
+                    <small>{{ template.created_at|date:"Y-m-d" }}</small>
+                </div>
+                {% if template.outline %}
+                    <p class="mb-1"><strong>大纲:</strong> {{ template.outline|linebreaksbr }}</p>
+                {% endif %}
+                 {% if template.style_prompt %}
+                    <p class="mb-1"><strong>文风提示:</strong> {{ template.style_prompt|linebreaksbr }}</p>
+                {% endif %}
+                 <small>
+                    <!-- TODO: Add edit and delete buttons -->
+                    <!-- <a href="#" class="btn btn-sm btn-outline-secondary me-1">编辑</a>
+                    <form action="#" method="post" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('确定删除这个模板吗？');">删除</button>
+                    </form> -->
+                </small>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <p>你还没有创建任何写作模板。</p>
+{% endif %}
+{% endblock %} 

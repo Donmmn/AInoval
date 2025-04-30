@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}小说写作助手{% endblock %}</title>
+    <!-- Include Bootstrap CSS (or your preferred CSS framework) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding-top: 5rem; }
+        .main-content { margin-top: 20px; }
+        .section-title { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .list-group-item a { text-decoration: none; color: inherit; }
+        .list-group-item span.text-muted { font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{% url 'dashboard' %}">小说写作助手</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarCollapse">
+                <ul class="navbar-nav me-auto mb-2 mb-md-0">
+                    {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="{% url 'dashboard' %}">仪表盘</a>
+                    </li>
+                     <li class="nav-item">
+                        <a class="nav-link" href="{% url 'template_list' %}">我的模板</a>
+                    </li>
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                     {% if user.is_authenticated %}
+                        <li class="nav-item dropdown">
+                          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            {{ user.username }}
+                          </a>
+                          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                            <!-- <li><a class="dropdown-item" href="#">设置</a></li> -->
+                            <!-- <li><hr class="dropdown-divider"></li> -->
+                            <li>
+                                <form action="{% url 'logout' %}" method="post" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item">退出登录</button>
+                                </form>
+                            </li>
+                          </ul>
+                        </li>
+                     {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'login' %}">登录</a>
+                        </li>
+                        <!-- <li class="nav-item">
+                            <a class="nav-link" href="#">注册</a>
+                        </li> -->
+                     {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container main-content">
+        {% block content %}
+        <!-- Specific page content will be inserted here -->
+        {% endblock %}
+    </main>
+
+    <!-- Include Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 
