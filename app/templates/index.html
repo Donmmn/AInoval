@@ -737,6 +737,37 @@
              width: 70px; /* 微调按钮区宽度 */
         }
 
+        /* --- Styles for AI Generated Content --- */
+        .ai-generated {
+            background-color: #e0f7ff; /* Light blue background */
+            padding: 1px 2px; /* Minimal padding */
+            border-radius: 3px;
+            position: relative; /* Needed for absolute positioning of button */
+            /* display: inline; Doesn't work well with block elements inside */
+        }
+        .delete-gen-btn {
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            line-height: 15px; /* Adjust for centering X */
+            text-align: center;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 5px; /* Space from text */
+            vertical-align: middle; /* Align with text */
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .delete-gen-btn:hover {
+            opacity: 1;
+        }
+        /* --- End AI Generated Styles --- */
+
     </style>
 </head>
 <body>
@@ -784,7 +815,8 @@
                     <div id="central-display-area" style="display: none;">
                         <!-- 内容将由 JS 动态生成 -->
                     </div>
-                    {# 原有的编辑区 #}
+                    {# 原有的编辑区 - 替换回 textarea #}
+                    {# <div id="novel-content" class="novel-editor" contenteditable="true" placeholder="在这里编辑你的小说内容..."></div> #}
                     <textarea id="novel-content" class="novel-editor" placeholder="在这里编辑你的小说内容..."></textarea>
                     <div class="prompt-bar">
                         <!-- Remove Drag Handle -->
@@ -884,11 +916,38 @@
         const promptInput = document.querySelector('.prompt-input'); // 获取提示词输入框
         const generateBtn = document.getElementById('generate-btn');
         const aiServiceSelect = document.getElementById('ai-service-select'); // 获取 AI 服务下拉列表
-        const undoGenBtn = document.getElementById('undo-gen-btn'); // 获取撤销按钮
+        const undoGenBtn = document.getElementById('undo-gen-btn'); // 获取撤销按钮 - 现在可以移除
+        // const novelContent = document.getElementById('novel-content'); // <<--- REMOVE THIS REDECLARATION
 
-        // Variable to store the range of the last AI generated text
-        let lastGeneratedRange = null; 
+        // Variable to store the range of the last AI generated text - 移除
+        // let lastGeneratedRange = null; 
         let isGenerating = false; // Flag to prevent concurrent generation requests
+
+        // --- Cleanup Function for AI Markup --- 
+        function cleanupAiMarkup(container = novelContent) {
+             // Temporarily disable for textarea
+             /*
+             let cleaned = false;
+             container.querySelectorAll('span.ai-generated').forEach(span => {
+                 // Remove the delete button first
+                 const deleteBtn = span.querySelector('button.delete-gen-btn');
+                 if (deleteBtn) {
+                     deleteBtn.remove();
+                     cleaned = true;
+                 }
+                 // Remove the highlight class
+                 span.classList.remove('ai-generated');
+                 // Optional: Unwrap the span if it causes issues, but usually removing class is enough
+                 // If span only contains text after removing button, replace span with its text content:
+                 // if (span.childNodes.length === 1 && span.firstChild.nodeType === Node.TEXT_NODE) {
+                 //    span.replaceWith(span.textContent);
+                 // }
+             });
+             if (cleaned) console.log('[Cleanup] Removed AI generated markup.');
+             return cleaned;
+             */
+            return false; // Return false as if nothing was cleaned
+         }
 
         // --- Function to handle the actual generation logic ---
         async function triggerGeneration() {
@@ -898,10 +957,13 @@
             }
             isGenerating = true;
             generateBtn.disabled = true;
-            undoGenBtn.disabled = true; // Also disable undo during generation
+            // undoGenBtn.disabled = true; // 移除撤销按钮相关
             generateBtn.textContent = '生成中...';
-            lastGeneratedRange = null; // Reset undo state before new generation
-            undoGenBtn.style.display = 'none';
+            // lastGeneratedRange = null; // 移除
+            // undoGenBtn.style.display = 'none'; // 移除
+            
+            // Clean up any previous highlights before generating new text
+            // cleanupAiMarkup(); // Temporarily disable for textarea
 
             // Gather all necessary data
             const selectedTemplateId = templateSelect.value;
@@ -965,33 +1027,48 @@
                }
                  
                 if (generatedText !== null && generatedText.length > 0) {
+                    // --- Insert generated text into TEXTAREA --- 
                     const currentContent = novelContent.value;
                     const selectionStart = novelContent.selectionStart;
                     const selectionEnd = novelContent.selectionEnd;
+                    
+                    // Insert the generated text at the cursor position, replacing selection if any
                     novelContent.value = currentContent.slice(0, selectionStart) + generatedText + currentContent.slice(selectionEnd);
+                    
+                    // Move cursor to the end of the inserted text
                     const newCursorPos = selectionStart + generatedText.length;
                     novelContent.focus();
                     novelContent.setSelectionRange(newCursorPos, newCursorPos);
+
+                    console.log('Generation successful, inserted plain text into textarea.');
                     
-                    lastGeneratedRange = { start: selectionStart, end: newCursorPos };
-                    undoGenBtn.style.display = 'block'; 
-                    undoGenBtn.disabled = false;
-                    console.log('Generation successful, undo enabled for range:', lastGeneratedRange);
-                    
+                    // Trigger input event AFTER insertion
                     novelContent.dispatchEvent(new Event('input', { bubbles: true }));
-                } else {
-                     lastGeneratedRange = null;
-                     undoGenBtn.style.display = 'none';
+                    
+                    /* --- Temporarily disable complex HTML insertion for textarea ---
+                    const selection = window.getSelection();
+                    if (selection.rangeCount > 0) {
+                        // ... (code for creating span.ai-generated and button) ...
+                        range.insertNode(span);
+                        // ... (code for moving cursor) ...
+                    } else {
+                         console.error('Cannot insert generated text, no valid cursor position found.');
+                         alert('无法插入生成的文本，请将光标置于编辑区内。 ');
+                    }
+                    */
+                    // --- End insertion logic modification ---
+                    
                 }
+                 // --- Remove old undo logic --- 
             } catch (error) {
                 console.error('生成内容失败:', error);
                 alert(`生成失败: ${error.message}`);
-                lastGeneratedRange = null;
-                undoGenBtn.style.display = 'none';
+                // lastGeneratedRange = null; // 移除
+                // undoGenBtn.style.display = 'none'; // 移除
             } finally {
                  generateBtn.textContent = '生成';
                  generateBtn.disabled = false;
-                 undoGenBtn.disabled = !lastGeneratedRange; // Disable undo if no valid range
+                 // undoGenBtn.disabled = !lastGeneratedRange; // 移除
                  isGenerating = false; // Release the lock
             }
         }
@@ -1637,20 +1714,23 @@
                     }
                     // 如果删除的是当前显示/编辑的项
                     if (novelContent.dataset.currentItemId == itemId) {
-                         novelContent.value = '';
+                         // Use value for textarea
+                         // novelContent.innerHTML = ''; 
+                         novelContent.value = ''; 
                          delete novelContent.dataset.currentItemId;
                          delete novelContent.dataset.currentItemType;
-                         // *** 修改点：重置标题和全局变量 ***
                          currentEditingBookTitle = null;
-                         isWordCountLimitAlertShown = false; // Reset flag
+                         isWordCountLimitAlertShown = false; 
                          updateRightSidebarTitle('设定详情');
                          clearSettingDisplay();
                     }
                     if (settingContent.dataset.currentItemId == itemId) {
-                         currentEditingBookTitle = null;
-                         isWordCountLimitAlertShown = false; // Reset flag
-                         clearSettingDisplay();
+                         // ... existing setting clear logic ...
+                         clearSettingDisplay(); // Ensure this is called too
                     }
+                    // Refresh parent list (moved after clearing current item checks)
+                    console.log(`Refreshing original parent list (${originalParentId}) after deletion.`);
+                    await reloadItemsForParent(originalParentId === 'root' ? null : originalParentId);
                 } else {
                      // result 为 null，表示 fetchAPI 内部出错 (已 alert)
                      console.error(`Failed to delete item ${itemId} (API call failed).`);
@@ -2221,107 +2301,118 @@
                 const currentType = novelContent.dataset.currentItemType;
                 const saveBtn = document.getElementById('save-btn'); 
                 
-                // --- Disable undo when saving --- 
-                if (lastGeneratedRange) {
-                    console.log('Saving content, disabling undo.');
-                    lastGeneratedRange = null;
-                    undoGenBtn.style.display = 'none'; 
-                }
-                // --- End disable undo --- 
-                
+                // --- Clean up AI markup before saving --- 
+                cleanupAiMarkup();
+                // --- End cleanup --- 
+                    
                 let wasTriggeredByInput = false; 
-
                 if (saveBtn && saveBtn.classList.contains('save-success')) {
-                    // 如果按钮已经是成功状态，可能快速连续触发，先移除旧状态
                     saveBtn.classList.remove('save-success');
                 }
 
                 if (currentId && currentType === 'book') {
                     console.log(`[Save Trigger] Saving content for book ${currentId}...`);
-                    // 可选：添加一个不那么干扰的保存状态指示，例如在标题旁边
-                    // wordCountBadgeSpan.textContent = '保存中...';
-
-                    if (saveBtn) { // 临时禁用手动保存按钮防止冲突
+                    if (saveBtn) {
                         saveBtn.disabled = true;
                         saveBtn.textContent = '保存中...';
                     }
+                    
+                    // --- Get value for textarea --- 
+                    const contentToSave = novelContent.value;
+                    // const contentToSave = novelContent.innerHTML;
+                    const result = await updateContentAPI(currentId, currentType, contentToSave);
+                    // --- End get value --- 
 
-                    const result = await updateContentAPI(currentId, currentType, novelContent.value);
-
-                    if (saveBtn) { // 恢复按钮
+                    if (saveBtn) {
                         saveBtn.disabled = false;
-                        saveBtn.textContent = '保存'; // 恢复原始文本
+                        saveBtn.textContent = '保存'; 
                     }
-
                     if (result) {
                         console.log('[Save Success] Content saved successfully.');
-                        // 可选：短暂显示保存成功状态 (变绿)
                         if (saveBtn) {
                             saveBtn.classList.add('save-success');
-                            setTimeout(() => {
-                               saveBtn.classList.remove('save-success');
-                            }, 1500); // 1.5秒后移除绿色状态
+                            setTimeout(() => { saveBtn.classList.remove('save-success'); }, 1500); 
                         }
-                        // 确保字数统计在保存后更新（如果内容在此期间变化）
+                        // Update title with value after saving
                         updateRightSidebarTitle(currentEditingBookTitle, novelContent.value);
                     } else {
                          console.error('[Save Failed] Failed to save content.');
                          if (saveBtn) {
-                            // 可视化失败，例如短暂变红？或只留 log
                             saveBtn.textContent = '保存失败!';
-                             setTimeout(() => {
-                                  if (!saveBtn.disabled) saveBtn.textContent = '保存'; // 恢复文本
-                             }, 2000);
+                             setTimeout(() => { if (!saveBtn.disabled) saveBtn.textContent = '保存'; }, 2000);
                          }
-                         // 可以添加更强的错误提示
-                         // alert('自动保存失败，请检查网络或稍后手动保存。');
                     }
                 } else {
                     console.log('[Save Skipped] No book selected or not editing a book.');
                 }
             }
 
-            // --- 生成按钮事件监听 --- 
-             if (generateBtn) {
-                 generateBtn.addEventListener('click', triggerGeneration); // Call the generation function on click
-                 /* --- Original click listener code moved to triggerGeneration() --- */
-                 /* generateBtn.addEventListener('click', async () => { ... }); */
-             } else {
-                 console.error("Generate button not found!");
-             }
-             
-            // --- Add Undo Button Listener ---
-            if (undoGenBtn) {
-                 undoGenBtn.addEventListener('click', () => {
-                     if (lastGeneratedRange) {
-                         console.log('Undo clicked, removing range:', lastGeneratedRange);
-                         const currentValue = novelContent.value;
-                         const range = lastGeneratedRange;
-                         
-                         // Remove the text
-                         novelContent.value = currentValue.slice(0, range.start) + currentValue.slice(range.end);
-                         
-                         // Move cursor back to the start of the removed range
-                         novelContent.focus();
-                         novelContent.setSelectionRange(range.start, range.start);
-                         
-                         // Reset state
-                         lastGeneratedRange = null;
-                         undoGenBtn.style.display = 'none';
-                         
-                         // Trigger input event to update counts etc.
-                         novelContent.dispatchEvent(new Event('input', { bubbles: true }));
-                         
-                         // Optional: Trigger auto-save after undo
-                         // if (debounceSaveSettings) debounceSaveSettings(); 
+            // --- Modify openBook function --- 
+            async function openBook(bookData) {
+                 console.log(`[Open Book] Opening book: ${bookData.name} (ID: ${bookData.id})`);
+                 showEditorArea(); 
+                 // *** ADDED LOGS ***
+                 console.log('[Open Book] After showEditorArea - novelContent display:', novelContent ? window.getComputedStyle(novelContent).display : 'Not Found');
+                 console.log('[Open Book] After showEditorArea - centralDisplayArea display:', centralDisplayArea ? window.getComputedStyle(centralDisplayArea).display : 'Not Found');
+                 // *** END ADDED LOGS ***
+                 clearSettingDisplay(); 
+                 // Use value for textarea
+                 // novelContent.innerHTML = '<p><i>加载中...</i></p>'; 
+                 novelContent.value = '加载中...'; 
+                 novelContent.dataset.currentItemId = bookData.id;
+                 novelContent.dataset.currentItemType = 'book';
+                 currentEditingBookTitle = bookData.name; 
+                 isWordCountLimitAlertShown = false; 
+                 updateRightSidebarTitle(currentEditingBookTitle); 
+
+                 const contentData = await getContentAPI(bookData.id);
+                 console.log("[Open Book] Received content data:", contentData);
+
+                 if (contentData) {
+                     // Use value for textarea
+                     // novelContent.innerHTML = contentData.content || '';
+                     novelContent.value = contentData.content || '';
+                     // Update title with value after loading
+                     // updateRightSidebarTitle(currentEditingBookTitle, novelContent.textContent); 
+                     updateRightSidebarTitle(currentEditingBookTitle, novelContent.value); 
+
+                     // *** REMOVED TEST H2 APPEND ***
+                     // const testHeader = document.createElement('h2');
+                     // testHeader.textContent = '测试内容 - 是否可见?';
+                     // testHeader.style.color = 'red'; 
+                     // novelContent.appendChild(testHeader);
+                     // console.log('[Open Book] Appended test header to novelContent.');
+                     // *** END REMOVED TEST ***
+
+                     if (contentData.associatedSetting) {
+                         console.log('[Open Book] Book has associated setting, displaying...', contentData.associatedSetting);
+                         const fullSettingData = await getContentAPI(contentData.associatedSetting.id);
+                         if (fullSettingData) {
+                             displaySettingDetails(fullSettingData); 
+                             settingContent.dataset.currentItemId = fullSettingData.id;
+                             settingContent.dataset.currentItemType = 'setting';
+                         } else {
+                              console.error('[Open Book] Failed to fetch full details for associated setting.');
+                              clearSettingDisplay(); 
+                         }
                      } else {
-                         console.warn('Undo clicked but no valid range stored.');
-                         undoGenBtn.style.display = 'none'; // Hide if somehow visible without range
+                         console.log('[Open Book] Book does not have an associated setting.');
+                         clearSettingDisplay(); 
                      }
-                 });
-            } else {
-                console.error('Undo Generate button not found!');
-            }
+                 } else {
+                     console.error('[Open Book] Failed to fetch content data.');
+                     // Use value for textarea error
+                     // novelContent.innerHTML = '<p><i>加载内容失败。</i></p>'; 
+                     novelContent.value = '加载内容失败。';
+                     delete novelContent.dataset.currentItemId;
+                     delete novelContent.dataset.currentItemType;
+                     updateRightSidebarTitle(bookData.name); 
+                     currentEditingBookTitle = null;
+                     isWordCountLimitAlertShown = false;
+                     clearSettingDisplay();
+                 }
+                 console.log("[Open Book] Finished opening book.");
+             }
 
         });
 
@@ -2578,19 +2669,63 @@
             }
         }
 
-        // --- 新增：控制中央区域显示的辅助函数 ---
+        // --- 新增：控制中央区域显示的辅助函数 --- 
         function showEditorArea() {
-            centralDisplayArea.style.display = 'none';
-            novelContent.style.display = 'block';
-            promptBar.style.display = 'flex'; // prompt-bar 用的是 flex
+            // Ensure elements exist before accessing style
+            if (centralDisplayArea) {
+                centralDisplayArea.style.display = 'none';
+            } else {
+                console.error("showEditorArea: centralDisplayArea not found!");
+            }
+            
+            // Also ensure the parent container is visible
+            const editorAreaContainer = document.querySelector('.novel-editor-area');
+            if (editorAreaContainer) {
+                editorAreaContainer.style.display = 'flex'; // Assuming it should be flex based on CSS
+            } else {
+                console.error("showEditorArea: .novel-editor-area container not found!");
+            }
+
+            if (novelContent) {
+                novelContent.style.display = 'block';
+            } else {
+                console.error("showEditorArea: novelContent not found!");
+            }
+            if (promptBar) {
+                promptBar.style.display = 'flex'; // prompt-bar 用的是 flex
+            } else {
+                console.error("showEditorArea: promptBar not found!");
+            }
             console.log('[Display Control] Showing Editor Area');
         }
 
         function showCentralDisplay() {
-             centralDisplayArea.innerHTML = '<div><i>加载中...</i></div>'; // 清空并显示加载状态
-             centralDisplayArea.style.display = 'block';
-             novelContent.style.display = 'none';
-             promptBar.style.display = 'none';
+             // Ensure elements exist before accessing style
+             if (centralDisplayArea) {
+                 centralDisplayArea.innerHTML = '<div><i>加载中...</i></div>'; // 清空并显示加载状态
+                 centralDisplayArea.style.display = 'block';
+             } else {
+                 console.error("showCentralDisplay: centralDisplayArea not found!");
+             }
+             
+             // Also hide the parent container when showing central display
+             const editorAreaContainer = document.querySelector('.novel-editor-area');
+             if (editorAreaContainer) {
+                 editorAreaContainer.style.display = 'none'; 
+             } else {
+                 console.error("showCentralDisplay: .novel-editor-area container not found!");
+             }
+
+             if (novelContent) {
+                 novelContent.style.display = 'none';
+             } else {
+                 console.error("showCentralDisplay: novelContent not found!");
+             }
+             if (promptBar) {
+                 promptBar.style.display = 'none';
+             } else {
+                 console.error("showCentralDisplay: promptBar not found!");
+             }
              console.log('[Display Control] Showing Central Display Area');
         }
 
@@ -2930,6 +3065,19 @@
                 } else {
                      console.error('Could not find setting list or book ID for saving.');
                      alert('无法保存设定，缺少必要信息。');
+                }
+            }
+        });
+
+        // --- Listener for Delete Button Clicks (Event Delegation) ---
+        novelContent.addEventListener('click', (event) => {
+            if (event.target.classList.contains('delete-gen-btn')) {
+                const generatedSpan = event.target.closest('span.ai-generated');
+                if (generatedSpan) {
+                    console.log('Deleting generated span...');
+                    generatedSpan.remove();
+                     // Trigger input event after deletion
+                     novelContent.dispatchEvent(new Event('input', { bubbles: true }));
                 }
             }
         });

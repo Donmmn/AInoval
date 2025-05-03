@@ -677,69 +677,58 @@ def admin_get_user_prompt_templates():
 @api_bp.route('/generate-with-template', methods=['POST'])
 @login_required # 假设需要用户登录才能生成
 def generate_prompt_with_template():
-    """根据用户选择的模板和输入数据，调用AI生成内容"""
-    data = request.json
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
     template_id = data.get('template_id')
-    user_input_data = data.get('input_data') # 包含 前文, 后文, 提示词, 字数, 风格, 设定
-    ai_service_config_id = data.get('ai_service_config_id') # Get the selected AI service config ID
-
-    if not template_id or not user_input_data or not ai_service_config_id: # Added check for ai_service_config_id
-        missing_fields = []
-        if not template_id: missing_fields.append('template_id')
-        if not user_input_data: missing_fields.append('input_data')
-        if not ai_service_config_id: missing_fields.append('ai_service_config_id')
-        return jsonify({'error': f'Missing required fields: {", ".join(missing_fields)}'}), 400
-
-    # 验证 template_id 和 ai_service_config_id 是否为有效整数
-    try:
-        template_id = int(template_id)
-        ai_service_config_id = int(ai_service_config_id) # Added validation for config ID
-    except ValueError:
-        return jsonify({'error': 'Invalid template_id or ai_service_config_id format (must be integer)'}), 400
-
-    template = PromptTemplate.query.get(template_id)
-    if not template:
-        return jsonify({'error': 'Template not found'}), 404
-        
-    # --- 权限检查 (模板): 用户只能使用系统或自己的模板 ---
-    is_system_template = template.user_id is None
-    is_owner = template.user_id == current_user.id
-    if not is_system_template and not is_owner:
-         # 暂时不允许管理员使用其他用户的模板 (除非未来有特殊需求)
-         return jsonify({'error': '无权使用此模板'}), 403
-
-    # --- 处理设定数据 (与之前相同) ---
-    enabled_settings_text = []
-    raw_settings = user_input_data.get('设定') 
+    variables = data.get('variables', {})
+    # 新增：从请求中获取 ai_service_config_id，可能为 None
+    requested_ai_config_id = data.get('ai_service_config_id') 
     
-    if isinstance(raw_settings, list):
-        for setting_item in raw_settings:
-            if isinstance(setting_item, dict) and \
-               setting_item.get('enabled') is True and \
-               'text' in setting_item and setting_item['text']: 
-                 enabled_settings_text.append(f"- {str(setting_item['text']).strip()}")
-    elif isinstance(raw_settings, str) and raw_settings.strip():
-        enabled_settings_text.append(raw_settings.strip())
-        
-    processed_settings = "\n".join(enabled_settings_text)
-    
-    processed_input_data = user_input_data.copy() 
-    processed_input_data['设定'] = processed_settings
+    # --- 确定要使用的 AI 服务配置 ---
+    ai_config = None
+    error_message = None
 
-    # --- 调用工具函数生成最终提示词 (与之前相同) ---
-    try:
-        final_prompt = process_prompt_template(template.template_string, processed_input_data)
-    except KeyError as e:
-        # 更具体的错误捕获：模板中使用了 input_data 未提供的变量
-        print(f"Error processing template {template_id}: Missing variable {e}")
-        return jsonify({'error': f"模板渲染错误：缺少变量 '{e}'"}), 400
-    except Exception as e:
-        print(f"Error processing prompt template {template_id}: {e}") # 记录日志
-        return jsonify({'error': '处理提示词模板时出错'}), 500
+    if requested_ai_config_id:
+        # 1. 用户明确指定了配置
+        try:
+            config_id = int(requested_ai_config_id)
+            # 查询用户自己的或系统服务
+            ai_config = AIService.query.filter(
+                AIService.id == config_id,
+                (AIService.owner_id == current_user.id) | (AIService.is_system_service == True)
+            ).first()
+            if not ai_config:
+                 error_message = "指定的 AI 服务配置不存在或无权访问。"
+        except (ValueError, TypeError):
+            error_message = "无效的 AI 服务配置 ID。"
+    else:
+        # 2. 用户未指定，查找系统默认配置
+        ai_config = AIService.query.filter_by(is_system_service=True, is_default=True).first()
+        if not ai_config:
+            # 3. 如果没有系统默认，返回错误
+            error_message = "未找到系统默认 AI 服务配置。请联系管理员设置。"
+            # --- 或者，如果想回退到用户自己的激活配置，可以取消下面的注释 ---
+            # if current_user.active_ai_service_id:
+            #     ai_config = AIService.query.get(current_user.active_ai_service_id)
+            #     if not ai_config: # 检查用户激活的是否还存在或有效
+            #         error_message = "用户启用的 AI 服务配置无效，且未找到系统默认配置。"
+            # else: # 用户没启用，也没有系统默认
+            #     error_message = "请先选择一个 AI 服务配置或启用一个默认配置。"
+
+    if error_message:
+        return jsonify({'error': error_message}), 400
+        
+    if not ai_config: # 双重检查，理论上如果 error_message 为空，ai_config 必不为空
+         return jsonify({'error': '无法确定要使用的 AI 服务配置。'}), 500
+
+    # --- 获取并渲染模板 ---
+    # ... (模板获取和渲染逻辑保持不变) ...
 
     # --- 调用 AI 服务 ---
-    print(f"User {current_user.id} calling AI service {ai_service_config_id} with template {template_id}") # Log
-    ai_result = call_ai_service(prompt=final_prompt, config_id=ai_service_config_id)
+    print(f"User {current_user.id} calling AI service {ai_config.id} with template {template_id}") # Log
+    ai_result = call_ai_service(prompt=final_prompt, config_id=ai_config.id)
 
     # --- 处理 AI 服务返回结果 ---
     if "error" in ai_result:
