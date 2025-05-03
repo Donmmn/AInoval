@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>用户管理</title>
+    <link rel="stylesheet" href="/static/style.css">
+     <!-- 引入 Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Reset default body margin */
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif; /* Updated Font */
+            margin: 0; /* Remove default margin */
+            background-color: #f7f7f7; /* Match index.html body background */
+            padding-top: 60px; /* Keep padding for fixed top bar height */
+        }
+
+        /* Top Bar Styles (Aligned with style.css/.top-bar in index.html) */
+        .top-bar {
+            background: #444; /* Match index.html top-bar */
+            /* color: #fff; */ /* Inherited */
+            padding: 0 20px; /* Match index.html top-bar padding */
+            display: flex;
+            justify-content: space-between; /* Adjust to allow left/right controls */
+            align-items: center;
+            height: 60px; /* Match index.html top-bar height */
+            position: fixed; /* Make it fixed */
+            top: 0;
+            left: 0;
+            width: 100%;
+            box-sizing: border-box; /* Include padding in width/height */
+            z-index: 1001; /* Ensure it's above other content */
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04); /* Match index.html top-bar shadow */
+        }
+        .top-bar .right-buttons { /* Keep if needed, adjust gap */
+            display: flex;
+            gap: 15px; /* Match index.html gap? */
+            margin-left: auto; /* Push right */
+        }
+        .top-bar .left-controls {
+             /* margin-right: auto; */ /* Removed, handled by justify-content: space-between */
+             display: flex;
+             align-items: center;
+             gap: 15px; /* Match index.html gap? */
+        }
+        /* .top-btn is defined in style.css, reuse that class for consistency */
+        /* Remove redundant .top-btn style here if style.css is loaded */
+         /* Example: Keep minimal override if needed */
+        .top-bar .top-btn {
+             /* Inherits from style.css */
+             /* Optionally add specific overrides here if needed */
+             /* Example: font-size: 16px; */
+        }
+        /* Remove hover if defined in style.css */
+        /* .top-btn:hover {
+             background-color: #777;
+        } */
+
+        /* Main Content Container (Adjusted) */
+        .container {
+            max-width: 1000px;
+            margin: 20px auto;
+            /* background: #fff; */ /* Remove background to blend with body */
+            background: #fdfdfd; /* Slightly off-white if blending is not desired */
+            padding: 30px;
+            border-radius: 8px;
+            /* box-shadow: 0 2px 10px rgba(0,0,0,0.1); */ /* Adjust or remove shadow */
+            box-shadow: 0 1px 5px rgba(0,0,0,0.06); /* Softer shadow */
+        }
+
+        /* Headers */
+        h1, h2 { color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px;}
+
+        /* Table Styles (Minor adjustments for consistency) */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; vertical-align: middle; }
+        th { background-color: #e9eef2; /* Match left sidebar header? */ font-weight: bold; color: #444; }
+        tr:nth-child(even) { background-color: #f8f9fa; /* Slightly lighter alternate */ }
+        td.actions-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px; /* Slightly reduce gap */
+            flex-wrap: wrap;
+        }
+
+        /* Flash Messages (Keep as is or adjust colors slightly) */
+        .flash-messages { list-style: none; padding: 0; margin-bottom: 20px; }
+        .flash-messages li { padding: 10px 15px; margin-bottom: 10px; border-radius: 4px; }
+        .flash-messages .success { background-color: #d1e7dd; color: #0f5132; border: 1px solid #a3cfbb; } /* Match save success green */
+        .flash-messages .error { background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; } /* Match delete red */
+
+        /* Action Button Styles (Align with index.html buttons) */
+        .action-btn {
+            padding: 5px 12px; /* Adjust padding */
+            border: 1px solid #ccc;
+            border-radius: 5px; /* Match index.html radius */
+            cursor: pointer;
+            background-color: #f0f0f0; /* Default background */
+            color: #333; /* Default text color */
+            font-size: 13px;
+            text-decoration: none;
+            display: inline-block;
+            /* margin-left: 5px; */ /* Use gap in parent instead */
+            vertical-align: middle;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .action-btn:hover {
+            background-color: #e0e0e0;
+            border-color: #bbb;
+        }
+        .delete-btn { /* Specific style for delete */
+            background-color: #f8d7da; /* Light red */
+            border-color: #f5c2c7;
+            color: #842029; /* Dark red text */
+        }
+        .delete-btn:hover {
+             background-color: #e5a4aa;
+             border-color: #e08b93;
+        }
+
+        /* Grant Form Styles */
+        .grant-form {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .grant-form input[type="number"] {
+            width: 60px;
+            padding: 5px 8px; /* Match button padding */
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+        .grant-form button { /* Style like other action buttons */
+            /* background-color: #28a745; */ /* Use success color */
+            background-color: #d1e7dd; /* Light green */
+            border-color: #a3cfbb;
+            color: #0f5132;
+            /* padding: 4px 8px; */ /* Use action-btn padding */
+            /* font-size: 12px; */ /* Use action-btn font-size */
+        }
+        .grant-form button:hover {
+            background-color: #bcdfca;
+            border-color: #8cccac;
+        }
+
+        /* General Form Styles */
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; }
+        input[type="text"], input[type="password"] {
+            width: calc(100% - 22px); /* Account for padding/border */
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px; /* Match button radius */
+            font-size: 14px; /* Consistent font size */
+        }
+        .form-group { margin-bottom: 20px; }
+        .form-button { /* Style like primary action button */
+             /* background-color: #007bff; */ /* Use a consistent primary color */
+             background-color: #cfe2ff; /* Light blue */
+             border: 1px solid #b6d4fe;
+             color: #084298; /* Dark blue text */
+             padding: 8px 15px; /* Adjust padding */
+             /* border: none; */
+             border-radius: 5px;
+             cursor: pointer;
+             font-size: 14px; /* Consistent font size */
+             transition: background-color 0.2s, border-color 0.2s;
+        }
+        .form-button:hover {
+             background-color: #a6caff;
+             border-color: #8cbefd;
+        }
+        /* .back-link { display: inline-block; margin-bottom: 20px; color: #007bff; text-decoration: none; } */
+        /* .back-link:hover { text-decoration: underline; } */ /* Replaced by top-bar button */
+
+        /* Collapsible Section Styles */
+        .collapsible-section {
+            margin-bottom: 20px;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            overflow: hidden; /* Ensure children stay within rounded corners */
+        }
+        .collapsible-section summary {
+            cursor: pointer;
+            padding: 12px 15px; /* Increase padding */
+            font-weight: bold;
+            list-style: none; /* Remove default marker */
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background-color: #f8f9fa; /* Light header background */
+            border-bottom: 1px solid #eee; /* Separator line */
+        }
+        .collapsible-section summary:hover {
+            background-color: #f1f3f5;
+        }
+        .collapsible-section summary::-webkit-details-marker { display: none; } /* Hide marker in Webkit */
+        .collapsible-section summary::before {
+            content: '\f078'; /* Corrected: Font Awesome down arrow with single backslash */
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            transition: transform 0.2s;
+            display: inline-block;
+            margin-right: 5px;
+            color: #666; /* Arrow color */
+        }
+        .collapsible-section[open] summary {
+             border-bottom: 1px solid #eee; /* Keep border when open */
+        }
+        .collapsible-section[open] summary::before {
+            transform: rotate(-180deg);
+        }
+        .collapsible-content {
+            /* padding-left: 20px; */
+            /* border-left: 2px solid #eee; */
+            /* margin-left: 5px; */
+            /* margin-top: 10px; */
+            padding: 20px; /* Add padding to content area */
+            background-color: #fff; /* White background for content */
+        }
+
+        /* Group Management Styles */
+        .group-management {
+            /* margin-top: 40px; */ /* Removed, handled by collapsible content padding */
+            /* border-top: 1px solid #eee; */ /* Removed, handled by collapsible structure */
+            /* padding-top: 20px; */ /* Removed */
+        }
+        .group-list { margin-top: 20px; }
+        .group-item details {
+            /* background-color: #f9f9f9; */
+            background-color: #fff; /* Use white */
+            border: 1px solid #e0e0e0; /* Slightly darker border */
+            border-radius: 5px;
+            margin-bottom: 10px;
+            /* padding: 10px 15px; */ /* Padding applied to summary/content */
+        }
+        .group-item summary {
+             font-weight: bold;
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             list-style: none;
+             padding: 10px 15px; /* Consistent padding */
+             background-color: #f8f8f8; /* Light gray header for group item */
+             border-bottom: 1px solid #e0e0e0; /* Separator */
+        }
+        .group-item summary:hover {
+             background-color: #f0f0f0;
+        }
+        .group-item details[open] summary {
+            border-bottom: 1px solid #e0e0e0; /* Keep separator when open */
+        }
+        .group-item summary::-webkit-details-marker { display: none; }
+        .group-actions button {
+             /* margin-left: 8px; */ /* Use gap */
+             /* font-size: 12px; */ /* Use action-btn style */
+             /* padding: 3px 8px; */ /* Use action-btn style */
+        }
+        .group-actions { /* Container for buttons */
+             display: flex;
+             gap: 5px;
+        }
+        .group-members {
+             /* margin-top: 15px; */
+             padding: 15px; /* Padding inside group content */
+             /* padding-left: 15px; */
+        }
+        .group-members h4 { margin-top: 0; margin-bottom: 10px; color: #555; }
+        .group-members ul { list-style: none; padding-left: 0; margin: 10px 0; } /* Remove disc, use spacing */
+        .group-members li {
+             margin-bottom: 8px;
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             padding: 5px 0; /* Add vertical padding */
+             border-bottom: 1px dashed #eee; /* Separator */
+        }
+         .group-members li:last-child {
+             border-bottom: none; /* Remove border for last item */
+         }
+        .group-members button.remove-user-btn {
+             /* background-color: #ffc107; */ /* Use warning colors */
+             background-color: #fff3cd;
+             border: 1px solid #ffe69c;
+             color: #664d03;
+             /* font-size: 11px; */ /* Use action-btn style */
+             /* padding: 2px 6px; */ /* Use action-btn style */
+        }
+        .group-members button.remove-user-btn:hover {
+             background-color: #ffeeba;
+             border-color: #ffdf7e;
+        }
+        .add-user-to-group-form {
+             margin-top: 15px; /* Space above add form */
+             display: flex;
+             gap: 8px;
+             align-items: center;
+        }
+        .add-user-to-group-form input[type="text"] {
+             width: 180px; /* Slightly wider */
+             padding: 8px 10px; /* Match form-button padding */
+             margin-bottom: 0;
+             font-size: 14px; /* Match form-button font-size */
+             border-radius: 5px;
+        }
+        .add-user-to-group-form button { /* Use form-button style */
+             /* font-size: 13px; */
+             /* padding: 5px 10px; */
+             /* Add class="form-button" in HTML instead */
+        }
+        .group-name-display {
+            flex-grow: 1;
+            margin-right: 10px;
+            color: #333; /* Ensure good contrast */
+        }
+
+    </style>
+</head>
+<body>
+    {# New Top Bar #}
+    <div class="top-bar">
+        <div class="left-controls">
+             {# Button moved to right-buttons #}
+             {# <a href="{{ url_for('main.index') }}" class="top-btn"><i class="fas fa-arrow-left"></i> 返回主界面</a> #}
+        </div>
+        {# Add other top bar buttons if needed later in .right-buttons #}
+        <div class="right-buttons">
+             {# Example: <a href="#" class="top-btn">Other Action</a> #}
+             {# Moved button here and removed icon #}
+             <a href="{{ url_for('main.index') }}" class="top-btn">返回主界面</a>
+        </div>
+    </div>
+
+    <div class="container">
+        {# Remove old back link #}
+        <!-- <a href="{{ url_for('main.index') }}" class="back-link">&larr; 返回主界面</a> -->
+        <h1>用户管理</h1>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <ul class="flash-messages">
+            {% for category, message in messages %}
+              <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+
+        {# 用户列表 (折叠, 默认展开) #}
+        <details class="collapsible-section" open>
+            <summary><h2><i class="fas fa-users"></i> 用户列表</h2></summary>
+            <div class="collapsible-content">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>用户名</th>
+                            <th>管理员?</th>
+                            <th>点数余额</th>
+                            <th>所属组</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.username }}</td>
+                            <td>{{ '是' if user.is_admin else '否' }}</td>
+                            <td id="points-{{ user.id }}">{{ user.points }}</td>
+                            <td>
+                                {% if user.groups %}
+                                    {{ user.groups | map(attribute='name') | join(', ') }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="actions-cell">
+                                {% if not user.is_admin %}
+                                    <a href="{{ url_for('user.delete', user_id=user.id) }}" class="action-btn delete-btn" onclick="return confirm('确定要删除用户 {{ user.username }} 吗？');">删除</a>
+                                    <form class="grant-form" data-user-id="{{ user.id }}">
+                                        <input type="number" min="1" placeholder="点数" required>
+                                        <button type="submit" class="action-btn">发放</button>
+                                    </form>
+                                {% else %}
+                                    (管理员)
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </details>
+
+        {# 折叠的添加用户部分 (保持默认关闭) #}
+        <details class="collapsible-section">
+            <summary><h2><i class="fas fa-user-plus"></i> 添加新用户</h2></summary>
+            <div class="collapsible-content">
+                <form id="add-user-form" method="POST" action="{{ url_for('user.manage') }}">
+                    <div class="form-group">
+                        <label for="username">用户名:</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">密码:</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <button type="submit" class="form-button">添加用户</button>
+                </form>
+            </div>
+        </details>
+
+        {# 用户组管理 (折叠, 默认关闭) #}
+        <details class="collapsible-section">
+            <summary><h2><i class="fas fa-layer-group"></i> 用户组管理</h2></summary>
+            <div class="group-management collapsible-content">
+                {# 创建新组表单 #}
+                <form id="create-group-form" class="form-group">
+                    <label for="new-group-name">创建新组:</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="new-group-name" name="name" placeholder="新用户组名称" required style="margin-bottom: 0; flex-grow: 1;">
+                        <button type="submit" class="form-button">创建</button>
+                    </div>
+                </form>
+
+                {# 现有组列表 #}
+                <div class="group-list">
+                    <h3>现有用户组:</h3>
+                    {% if groups %}
+                        {% for group in groups %}
+                        <div class="group-item" data-group-id="{{ group.id }}">
+                            <details>
+                                <summary>
+                                    <span class="group-name-display">{{ group.name }}</span>
+                                    <div class="group-actions">
+                                        <button class="action-btn delete-btn delete-group-btn" onclick="deleteGroup(event, '{{ group.id }}', '{{ group.name }}')">删除此组</button>
+                                    </div>
+                                </summary>
+                                <div class="group-members collapsible-content">
+                                    <h4>组成员:</h4>
+                                    <ul id="group-members-list-{{ group.id }}">
+                                        {% for member in group.users.all() %}
+                                        <li data-user-id="{{ member.id }}">
+                                            <span>{{ member.username }}</span>
+                                            <button class="action-btn remove-user-btn" onclick="removeUserFromGroup(event, '{{ group.id }}', '{{ member.id }}', '{{ member.username }}')">移除</button>
+                                        </li>
+                                        {% else %}
+                                        <li class="no-members">暂无成员</li>
+                                        {% endfor %}
+                                    </ul>
+                                    <form class="add-user-to-group-form" data-group-id="{{ group.id }}">
+                                        <input type="text" name="username" placeholder="输入用户名添加" required>
+                                        <button type="submit" class="form-button">添加成员</button>
+                                    </form>
+                                </div>
+                            </details>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>暂无用户组。</p>
+                    {% endif %}
+                </div>
+            </div>
+        </details>
+
+        {# TODO: Add Section for Auto Point Distribution Rules later #}
+
+    </div>
+
+    <script>
+        // Helper for API calls within this page
+        async function userManageApiCall(url, options = {}) {
+             const defaultHeaders = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            };
+            options.headers = { ...defaultHeaders, ...options.headers };
+            if (options.body && typeof options.body !== 'string') {
+                options.body = JSON.stringify(options.body);
+            }
+            try {
+                const response = await fetch(url, options);
+                let result = {}; // Initialize result
+                // Try to parse JSON even if status is not OK, for error messages
+                try {
+                    if (response.status !== 204 && response.headers.get('Content-Length') !== '0') {
+                        result = await response.json(); 
+                    }
+                } catch (jsonError) {
+                    console.warn("Could not parse JSON response, status:", response.status);
+                    if (!response.ok) {
+                         // If parsing fails on an error response, create a generic error
+                         result = { error: `Request failed with status ${response.status}` };
+                    }
+                    // If parsing fails on a success response (e.g., 204), result remains {}
+                }
+
+                if (!response.ok) {
+                    console.error(`API Error (${response.status}) for ${url}:`, result);
+                    alert(`操作失败: ${result.error || response.statusText || '未知错误'}`);
+                    return null;
+                }
+                // Handle no content success (common for DELETE)
+                 if (response.status === 204 || response.headers.get('Content-Length') === '0') {
+                     return { success: true }; 
+                 }
+                return result; // Return parsed JSON or {success: true} for 204
+            } catch (error) {
+                console.error('Network or fetch error:', error, url, options);
+                alert('网络错误或请求失败');
+                return null;
+            }
+        }
+        // ---------------------------------------------------------------
+
+        // Add event listeners after DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            // 发放点数表单
+            document.querySelectorAll('.grant-form').forEach(form => {
+                form.addEventListener('submit', handleGrantPointsSubmit);
+            });
+            // 创建组表单
+            const createGroupForm = document.getElementById('create-group-form');
+            if (createGroupForm) {
+                createGroupForm.addEventListener('submit', handleCreateGroupSubmit);
+            }
+            // 添加用户到组表单
+            document.querySelectorAll('.add-user-to-group-form').forEach(form => {
+                form.addEventListener('submit', handleAddUserToGroupSubmit);
+            });
+        });
+
+        // 处理发放点数
+        async function handleGrantPointsSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const userId = form.dataset.userId;
+            const input = form.querySelector('input[type="number"]');
+            const button = form.querySelector('button');
+            const points = parseInt(input.value, 10);
+
+            if (isNaN(points) || points <= 0) {
+                alert('请输入有效的正整数点数。');
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = '发放中...';
+
+            const result = await userManageApiCall(`/api/user/${userId}/grant_points`, {
+                method: 'POST',
+                body: { points: points }
+            });
+
+            if (result && result.success) {
+                alert(result.message || `成功向用户 ${userId} 发放 ${points} 点数。`);
+                const pointsCell = document.getElementById(`points-${userId}`);
+                if (pointsCell) {
+                    pointsCell.textContent = result.new_balance;
+                }
+                input.value = '';
+            } // Error handled by apiCall
+
+            button.disabled = false;
+            button.textContent = '发放';
+        }
+
+        // 处理创建组
+        async function handleCreateGroupSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const input = form.querySelector('#new-group-name');
+            const button = form.querySelector('button');
+            const groupName = input.value.trim();
+
+            if (!groupName) {
+                alert('请输入用户组名称。');
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = '创建中...';
+
+            const result = await userManageApiCall('/api/groups', {
+                 method: 'POST',
+                 body: { name: groupName }
+             });
+
+            if (result && result.id) {
+                alert(`用户组 "${result.name}" 创建成功！`);
+                location.reload(); // Simple solution: reload page
+            } // Error handled by apiCall
+
+            button.disabled = false;
+            button.textContent = '创建';
+            input.value = '';
+        }
+
+        // 处理添加用户到组
+        async function handleAddUserToGroupSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const groupId = form.dataset.groupId;
+            const input = form.querySelector('input[name="username"]');
+            const button = form.querySelector('button');
+            const username = input.value.trim();
+
+            if (!username) {
+                alert('请输入要添加的用户名。');
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = '添加中...';
+
+            const result = await userManageApiCall(`/api/groups/${groupId}/users`, {
+                method: 'POST',
+                body: { username: username }
+            });
+
+            if (result && result.success !== false) { // Check for non-failure
+                alert(result.message || `成功将用户 "${username}" 添加到组中。`);
+                location.reload(); // Simple solution: reload page
+            }
+
+            button.disabled = false;
+            button.textContent = '添加成员';
+            input.value = '';
+        }
+
+        // 处理删除组 (Called by onclick)
+        async function deleteGroup(event, groupId, groupName) {
+             // 阻止事件冒泡或默认行为 (如果按钮在 form 里)
+             if(event) event.preventDefault();
+
+            if (!confirm(`确定要删除用户组 "${groupName}" 吗？组内用户不会被删除，但会从该组移除。`)) { // Unescape quotes for display
+                return;
+            }
+            console.log(`Deleting group ${groupId}`);
+            const deleteButton = event ? event.target : document.querySelector(`.group-item[data-group-id='${groupId}'] .delete-group-btn`);
+            if(deleteButton) deleteButton.disabled = true;
+
+            const result = await userManageApiCall(`/api/groups/${groupId}`, { method: 'DELETE' });
+
+            if (result && result.success) {
+                 alert(result.message || '用户组已删除。');
+                 location.reload();
+            } else {
+                 if(deleteButton) deleteButton.disabled = false; // Re-enable on failure
+            }
+        }
+
+        // 处理从组移除用户 (Called by onclick)
+        async function removeUserFromGroup(event, groupId, userId, username) {
+             // 阻止事件冒泡或默认行为
+             if(event) event.preventDefault();
+
+             if (!confirm(`确定要将用户 "${username}" 从当前组中移除吗？`)) { // Unescape quotes for display
+                 return;
+             }
+            console.log(`Removing user ${userId} from group ${groupId}`);
+            const removeButton = event ? event.target : document.querySelector(`.group-item[data-group-id='${groupId}'] li[data-user-id='${userId}'] .remove-user-btn`);
+            if (removeButton) removeButton.disabled = true;
+
+            const result = await userManageApiCall(`/api/groups/${groupId}/users/${userId}`, { method: 'DELETE' });
+
+            if (result && result.success) {
+                 alert(result.message || '用户已从组中移除。');
+                 location.reload();
+            } else {
+                 if (removeButton) removeButton.disabled = false; // Re-enable on failure
+            }
+        }
+
+    </script>
+
+</body>
+</html> 

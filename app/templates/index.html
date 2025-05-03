@@ -1,0 +1,2939 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>主界面 - 小说编辑器</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- 引入 Font Awesome 图标库 (示例) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .editor-container {
+            margin: 0;
+            width: 100%;
+            padding: 0; /* 确保无 padding */
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+        }
+        .novel-editor-area {
+            flex: 1; 
+            display: flex; 
+            flex-direction: column;
+            position: relative; 
+            overflow: hidden; 
+            padding: 0; /* 确保无 padding */
+        }
+        .novel-editor { /* #novel-content */
+            width: 100%;
+            min-height: 150px;
+            resize: vertical;
+            border: none; 
+            font-size: 18px;
+            /* padding: 20px 0 100px 20px; */ /* T R B L - Original offset for prompt bar */
+            /* New padding: Add significant bottom padding (e.g., 50vh) */
+            padding: 20px 0 calc(50vh + 120px) 20px; /* T=20, R=0, B=50% VH + PromptBarOffset, L=20 */
+            outline: none;
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: #fafbfc; 
+            border-radius: 0; 
+            box-sizing: border-box;
+            flex: 1;
+            overflow-y: auto;
+        }
+        .prompt-bar {
+            position: absolute;
+            bottom: 15px; 
+            left: 5%; 
+            right: 5%;
+            width: 90%; 
+            z-index: 10; 
+            box-sizing: border-box; 
+            margin: 0 auto; 
+            background: #ffffff; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15); 
+            padding: 15px 20px; /* Restore original padding */
+            display: flex; /* Use flex for the row inside */
+        }
+        .prompt-row {
+            display: flex;
+            align-items: stretch; 
+            gap: 10px; /* Gap between textarea and buttons */
+            width: 100%;
+        }
+        textarea.prompt-input {
+            flex: 1; /* Take up most horizontal space */
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 15px;
+            padding: 8px 10px;
+            overflow-y: auto; 
+            font-family: inherit;
+            line-height: 1.4;
+            min-height: 70px; 
+        }
+        .prompt-actions {
+            display: flex; 
+            flex-direction: column;
+            gap: 4px;
+            align-items: stretch; /* Make buttons fill width */
+            flex-shrink: 0; /* Prevent shrinking */
+            width: 80px; 
+        }
+        .prompt-actions button {
+            padding: 6px 18px;
+            font-size: 15px;
+            width: 100%; /* Ensure button takes width from container */
+            text-align: center;
+            box-sizing: border-box;
+            border: 1px solid #ccc; /* Add a default border */
+            background-color: #f0f0f0; /* Default background */
+            color: #333; /* Default text color */
+            cursor: pointer;
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s; /* Add transitions */
+        }
+        .prompt-actions button:hover {
+             background-color: #e0e0e0; /* Hover background */
+        }
+        .prompt-actions button:disabled {
+            background-color: #ddd; /* Disabled background */
+            color: #999; /* Disabled text color */
+            cursor: not-allowed;
+        }
+
+        /* 新增：保存成功状态 */
+        .prompt-actions button.save-success {
+            background-color: #d1e7dd; /* Light green background (Bootstrap success) */
+            border-color: #a3cfbb; /* Green border */
+            color: #0f5132; /* Dark green text */
+        }
+
+        body {
+            background: #f7f7f7;
+            overflow-x: hidden; /* 防止横向滚动条 */
+        }
+        .main-flex {
+            display: flex;
+            width: 100vw;
+            min-height: calc(100vh - 60px); /* 减去顶部栏高度 */
+        }
+
+        /* 左侧边栏 */
+        .left-sidebar {
+            width: 15vw;
+            min-width: 200px; /* 最小宽度 */
+            max-width: 300px; /* 最大宽度 */
+            background: #e9eef2;
+            border-right: 1px solid #d3d9df;
+            padding: 15px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto; /* 内容多时可滚动 */
+        }
+        .sidebar-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+        .sidebar-btn {
+            flex: 1; /* 平分空间 */
+            background: #888;
+            color: #fff;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+            text-align: center;
+        }
+        .sidebar-btn.delete-btn {
+            background: #c77; /* 删除按钮用不同颜色 */
+        }
+        .sidebar-btn:hover {
+            background: #222;
+        }
+        .sidebar-btn.delete-btn:hover {
+            background: #a55;
+        }
+
+        /* 文件列表 */
+        .file-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1; /* 占据剩余空间 */
+        }
+        .file-item {
+            padding: 6px 2px 6px 5px; /* 微调内边距 T R B L */
+            margin-bottom: 3px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 15px;
+            user-select: none;
+            position: relative;
+            background-color: transparent; 
+        }
+        .file-item:hover {
+            background-color: #dce4eb;
+        }
+        .file-item i { /* 图标样式 */
+            margin-right: 8px;
+            color: #555;
+            width: 16px; /* 固定图标宽度 */
+            text-align: center;
+            vertical-align: middle;
+        }
+        .file-item .folder-toggle { /* 文件夹折叠图标 */
+             transition: transform 0.2s ease-in-out;
+             vertical-align: middle;
+        }
+        .file-item.collapsed .folder-toggle {
+             transform: rotate(-90deg);
+        }
+        .file-item .item-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .file-item input.rename-input { /* 重命名输入框 */
+            border: 1px solid #999;
+            padding: 2px 4px;
+            font-size: 15px;
+            outline: none;
+            width: calc(100% - 50px); /* 示例 */
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .file-item ul { /* 子列表 */
+            list-style: none;
+            padding-left: 25px; /* 子项缩进 - 保持 */
+            margin-top: 5px;
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .file-item.collapsed ul {
+            display: none;
+        }
+
+        /* 中间编辑区容器 */
+        .editor-outer {
+            flex: 1;
+            display: flex;
+            padding: 0;
+            box-sizing: border-box;
+            overflow: hidden;
+            height: calc(100vh - 60px);
+            max-height: calc(100vh - 60px);
+        }
+        textarea.prompt-input {
+            flex: 1;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 15px;
+            padding: 8px 10px;
+            overflow-y: auto; 
+            font-family: inherit;
+            line-height: 1.4;
+            align-self: stretch; 
+            resize: none; 
+        }
+        .word-count-input {
+             width: 80px;
+             font-size: 15px;
+             padding: 8px 10px;
+        }
+        .word-count-label {
+             margin-right: 4px;
+        }
+        .prompt-actions {
+             display: flex;
+             flex-direction: column;
+             gap: 4px;
+             align-items: flex-start;
+        }
+         .prompt-actions button {
+            padding: 6px 18px;
+            font-size: 15px;
+        }
+
+        /* 右侧边栏 */
+        .right-sidebar {
+            width: 20vw; /* 比左侧宽一点 */
+            min-width: 250px;
+            max-width: 350px;
+            background: #f0f3f6;
+            border-left: 1px solid #d3d9df;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .right-sidebar h3 {
+            margin-top: 0;
+            color: #444;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 10px;
+        }
+        #setting-content ul {
+             list-style: disc;
+             padding-left: 20px;
+        }
+         #setting-content li {
+             margin-bottom: 8px;
+             background: #fff;
+             padding: 5px 8px;
+             border-radius: 4px;
+             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+         }
+
+        /* 简单的右键菜单样式 */
+        .context-menu {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 5px 0;
+            border-radius: 4px;
+            z-index: 1000;
+            display: none; /* 默认隐藏 */
+        }
+        .context-menu div {
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .context-menu div:hover {
+            background: #eee;
+        }
+
+         /* 创建菜单 */
+         #create-menu {
+             /* 样式与 context-menu 类似 */
+             position: absolute;
+             background: #fff;
+             border: 1px solid #ccc;
+             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+             padding: 5px 0;
+             border-radius: 4px;
+             z-index: 1000;
+             display: none;
+         }
+         #create-menu div {
+             padding: 8px 15px;
+             cursor: pointer;
+             font-size: 14px;
+         }
+         #create-menu div:hover {
+             background: #eee;
+         }
+
+        /* 拖放视觉反馈样式 */
+        .file-item.drag-over-folder { /* 拖到文件夹上 */
+            background-color: #cce5ff !important; /* 淡蓝色背景 */
+            outline: 1px dashed #007bff;
+        }
+
+        .file-item.drag-over-insert-before,
+        .file-item.drag-over-insert-after {
+             position: relative; /* 确保伪元素相对于它定位 */
+        }
+
+        .file-item.drag-over-insert-before::before,
+        .file-item.drag-over-insert-after::after { /* 插入指示线 */
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: #007bff; /* 蓝色指示线 */
+            z-index: 1;
+        }
+        .file-item.drag-over-insert-before::before {
+            top: -1px; /* 显示在元素上方 */
+        }
+        .file-item.drag-over-insert-after::after {
+            bottom: -1px; /* 显示在元素下方 */
+        }
+
+        #delete-btn.drag-over-delete { /* 拖到删除区域上 */
+            background-color: #f8d7da !important; /* 淡红色背景 */
+            border: 1px dashed #dc3545;
+            outline: none; /* 覆盖默认 outline */
+        }
+
+        .file-item.dragging { /* 被拖动的元素本身 */
+            outline: 2px dashed #ff8c00; 
+            background-color: #fff8dc; /* 给一个轻微的背景色 */
+        }
+
+        .file-item.drag-over-associate { /* 拖设定书到书上 */
+            background-color: #d1e7dd !important; /* 淡绿色背景 */
+            outline: 1px dashed #198754;
+        }
+
+        /* Right Sidebar Setting Editor Styles */
+        #setting-content {
+            position: relative; /* Needed for absolute positioning of buttons */
+        }
+        .setting-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+        .setting-item {
+            display: flex;
+            align-items: flex-start; /* Align items to the top */
+            gap: 8px;
+            margin-bottom: 10px;
+            padding: 8px 8px 8px 4px; /* Reduce left padding (T R B L) */
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .setting-item-controls {
+            display: flex;
+            align-items: center; /* Center checkbox and delete button vertically */
+            gap: 5px;
+            /* Give controls a fixed width if needed, or let them shrink */
+        }
+        .setting-item input[type=\"checkbox\"] {
+            /* Style checkbox */
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            margin-top: 4px; /* Adjust vertical alignment */
+        }
+        .setting-item textarea {
+            flex: 1; /* Take up remaining space */
+            min-height: 40px; /* Start height */
+            height: auto; /* Allow auto-height based on content */
+            resize: vertical; /* Allow vertical resize */
+            max-height: 120px; /* Limit max height */
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-size: 14px;
+            line-height: 1.4;
+            box-sizing: border-box;
+        }
+        .setting-item .delete-setting-btn {
+            background: #f8d7da;
+            color: #842029;
+            border: 1px solid #f5c2c7;
+            border-radius: 50%; /* Make it round */
+            width: 22px;
+            height: 22px;
+            line-height: 20px; /* Adjust for vertical centering */
+            text-align: center;
+            cursor: pointer;
+            font-weight: bold;
+            padding: 0;
+            margin-top: 2px; /* Adjust vertical alignment */
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+        .setting-item .delete-setting-btn:hover {
+            background: #e5a4aa;
+        }
+
+        .setting-header {
+            display: flex;
+            justify-content: space-between; /* Title left, buttons right */
+            align-items: center;
+            margin-bottom: 10px; /* Space below header */
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 10px;
+        }
+        .setting-header h3 {
+            margin: 0; /* Remove default margin */
+            color: #444;
+            flex-grow: 1; /* Allow title to take up space */
+            border-bottom: none; /* Remove duplicate border */
+            padding-bottom: 0;
+        }
+        .setting-actions {
+            /* margin-top: 15px; */ /* Remove top margin as it's now in header */
+            display: flex;
+            gap: 8px; /* Space between buttons */
+            /* justify-content: flex-end; */ /* No longer needed */
+            flex-shrink: 0; /* Prevent buttons from shrinking */
+        }
+        .setting-actions button {
+            padding: 5px 12px; /* Adjust padding for smaller buttons */
+            border-radius: 5px; /* Rounded rectangle */
+            cursor: pointer;
+            font-size: 13px; /* Slightly smaller font */
+            border: 1px solid transparent; /* Base border */
+            line-height: normal; /* Reset line-height */
+            height: auto; /* Reset height */
+            width: auto; /* Reset width */
+            text-align: center;
+        }
+        #add-setting-btn {
+             background-color: #cfe2ff;
+             border-color: #b6d4fe;
+             color: #084298;
+             font-size: 16px; /* Keep '+' slightly larger */
+             /* Remove circle/fixed size styles */
+             /* width: 30px; */
+             /* height: 30px; */
+             /* padding: 0; */
+             /* border-radius: 50%; */
+             /* align-self: flex-start; */
+             /* margin-top: 5px; */
+        }
+        #save-settings-btn {
+             background-color: #d1e7dd;
+             border-color: #a3cfbb;
+             color: #0f5132;
+        }
+        
+        .setting-item {
+            display: flex;
+            align-items: flex-start; 
+            gap: 8px;
+            margin-bottom: 10px;
+            padding: 8px 8px 8px 4px; /* Reduce left padding (T R B L) */
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            width: 100%; 
+            box-sizing: border-box;
+        }
+        /* ... other setting item styles ... */
+
+        #right-sidebar-title {
+            display: flex;
+            justify-content: space-between; /* Pushes title left, badge right */
+            align-items: center; /* Vertically aligns items */
+            /* Ensure h3 takes full width if needed, or adjust parent */
+            width: 100%;
+            box-sizing: border-box; /* Include padding/border in width */
+        }
+
+        .book-title-text {
+            /* Allows the title to take space but not push the badge too far */
+            flex-grow: 1;
+             /* Prevent title from becoming too small if badge is wide */
+            min-width: 0;
+            /* Add ellipsis if title is very long */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-right: 10px; /* Space between title and badge */
+             /* Match existing h3 font size/style if needed */
+             font-size: inherit;
+             font-weight: inherit;
+             color: inherit;
+             margin-bottom: 0; /* Override default h3 margin if any */
+             padding-bottom: 0; /* Override default h3 padding if any */
+             border-bottom: none; /* Override default h3 border if any */
+
+        }
+
+        .word-count-badge {
+            background-color: #e9ecef; /* Light grey background */
+            color: #495057; /* Darker grey text */
+            padding: 3px 8px; /* Small padding */
+            border-radius: 10px; /* Rounded corners */
+            font-size: 0.8em; /* Smaller font size */
+            font-weight: normal; /* Normal weight */
+            white-space: nowrap; /* Prevent wrapping */
+            flex-shrink: 0; /* Prevent badge from shrinking */
+            transition: background-color 0.3s, color 0.3s; /* Smooth transition */
+        }
+
+        .word-count-badge.limit-exceeded {
+            background-color: #f8d7da; /* Light red background */
+            color: #842029; /* Darker red text */
+            font-weight: bold;
+        }
+
+        /* Ensure the h3 itself doesn't have conflicting styles */
+         .right-sidebar h3 {
+             /* Remove conflicting styles if they exist from previous steps */
+             /* For example, reset borders/padding if they interfere with flex */
+             /* border-bottom: 1px solid #ccc; */ /* Likely remove this */
+             /* padding-bottom: 10px; */ /* Likely remove this */
+             margin-bottom: 10px; /* Keep space below the title bar */
+         }
+
+         /* Adjust setting header if the main h3 border was removed */
+         .setting-header {
+             /* Maybe add border here if needed */
+             /* border-bottom: 1px solid #ccc; */
+             /* padding-bottom: 10px; */
+         }
+
+         /* --- 顶部栏样式调整 --- */
+        .top-bar {
+            /* ... (保留原有样式) ... */
+            display: flex; /* 使用 Flexbox 布局 */
+            justify-content: space-between; /* 两端对齐 */
+            align-items: center; /* 垂直居中 */
+            padding: 0 20px; /* 左右内边距 */
+            gap: 15px; /* 按钮间距 */
+        }
+
+        .left-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px; /* 标签和开关间距 */
+        }
+
+        .auto-save-label {
+            color: #eee; /* 标签颜色 */
+            font-size: 14px;
+            user-select: none; /* 防止文本被选中 */
+        }
+
+        /* 简单的切换开关样式 */
+        .toggle-switch {
+            appearance: none;
+            -webkit-appearance: none;
+            position: relative;
+            width: 40px; /* 开关宽度 */
+            height: 22px; /* 开关高度 */
+            border-radius: 11px; /* 圆角 */
+            background-color: #aaa; /* 关闭状态背景 */
+            cursor: pointer;
+            transition: background-color 0.3s;
+            vertical-align: middle; /* 对齐标签 */
+        }
+
+        .toggle-switch::before {
+            content: '';
+            position: absolute;
+            top: 2px; /* 圆点上边距 */
+            left: 2px; /* 圆点左边距 */
+            width: 18px; /* 圆点宽度 */
+            height: 18px; /* 圆点高度 */
+            border-radius: 50%; /* 圆形 */
+            background-color: white; /* 圆点颜色 */
+            transition: transform 0.3s;
+        }
+
+        .toggle-switch:checked {
+            background-color: #4CAF50; /* 开启状态背景 (绿色) */
+        }
+
+        .toggle-switch:checked::before {
+            transform: translateX(18px); /* 圆点移动距离 */
+        }
+
+        /* 调整右侧按钮间距 (如果需要) */
+        .right-buttons {
+            display: flex;
+            gap: 15px; /* 按钮间距 */
+        }
+
+        /* --- 中间显示区域样式 (用于显示未关联书籍列表) --- */
+        #central-display-area {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+            background-color: #f0f3f6; /* 给个背景色区分 */
+        }
+        #central-display-area h4 { /* 列表标题样式 */
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #555;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .unassociated-book-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .unassociated-book-item {
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+        }
+        .unassociated-book-item:hover {
+            background-color: #e9eef2;
+            border-color: #cdd7e0;
+        }
+        .unassociated-book-item i {
+            color: #666;
+            width: 16px; /* 与左侧列表图标对齐 */
+            text-align: center;
+        }
+
+        /* 新增：点数余额样式 */
+        .points-balance {
+            color: #ffdd57; /* Light yellow color */
+            font-size: 14px;
+            margin-right: 10px; /* Space before AI service button */
+            font-weight: bold;
+        }
+        .points-balance .fas { /* Icon style */
+            margin-right: 4px;
+            font-size: 13px;
+        }
+
+        /* 新增：提示词栏选项样式 */
+        .prompt-bar {
+            /* ... */
+            padding: 10px 15px; /* 微调 padding */
+        }
+        .prompt-row {
+            /* ... */
+            align-items: flex-start; /* 改为顶部对齐 */
+            gap: 15px; /* 增加间距 */
+        }
+        .prompt-options {
+            display: flex;
+            flex-direction: column; /* 垂直排列选项 */
+            gap: 8px; /* 选项之间的间距 */
+            flex-shrink: 0; /* 防止被压缩 */
+            width: 180px; /* 给一个固定宽度 */
+        }
+        .prompt-options div {
+            display: flex;
+            align-items: center; /* 标签和输入框对齐 */
+            gap: 5px; /* 标签和输入框间距 */
+        }
+        .prompt-options label {
+            width: 40px; /* 固定标签宽度 */
+            text-align: right;
+            font-size: 14px;
+            color: #333;
+            flex-shrink: 0;
+        }
+        .prompt-options select,
+        .prompt-options input[type="number"],
+        .prompt-options input[type="text"] {
+            flex-grow: 1; /* 输入框占据剩余空间 */
+            padding: 6px 8px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            min-width: 0; /* 允许输入框缩小 */
+        }
+
+        textarea.prompt-input {
+            /* ... */
+            min-height: 80px; /* 可能需要调整高度 */
+        }
+        .prompt-actions {
+             width: 70px; /* 微调按钮区宽度 */
+        }
+
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="left-controls"> <!-- 新增容器 -->
+            <label for="auto-save-toggle" class="auto-save-label">离开时自动保存: </label>
+            {# 根据后端传递的值决定是否默认选中，并将值存入 data 属性 #}
+            <input type="checkbox" id="auto-save-toggle"
+                   class="toggle-switch"
+                   data-initial-state="{{ user_auto_save_setting | tojson }}"
+                   {% if user_auto_save_setting %}checked{% endif %}>
+        </div>
+        <div class="right-buttons">
+            {% if current_user.is_authenticated and current_user.is_admin %}
+            <a href="{{ url_for('user.manage') }}" class="top-btn">用户管理</a>
+            {% endif %}
+            {# 新增：显示点数余额 (仅对非管理员显示) #}
+            {% if not current_user.is_admin %}
+            <span class="points-balance" id="user-points-display">
+                <i class="fas fa-coins"></i> {{ user_points }}
+            </span>
+            {% endif %}
+            <a href="{{ url_for('ai_service.manage') }}" class="top-btn">AI服务管理</a>
+            <a href="{{ url_for('main.logout') }}" class="top-btn">退出登录</a>
+        </div>
+    </div>
+
+    <div class="main-flex">
+        <!-- 左侧文件列表 -->
+        <div class="left-sidebar">
+            <div class="sidebar-actions">
+                <button id="create-btn" class="sidebar-btn">创建</button>
+                <button id="delete-btn" class="sidebar-btn delete-btn">删除区域</button>
+            </div>
+            <ul id="file-list" class="file-list">
+                <!-- 文件项将由 JS 动态生成 -->
+            </ul>
+        </div>
+
+        <!-- 中间编辑区 -->
+        <div class="editor-outer">
+            <div class="editor-container">
+                <div class="novel-editor-area">
+                    {# 新增：用于显示非编辑内容的容器 #}
+                    <div id="central-display-area" style="display: none;">
+                        <!-- 内容将由 JS 动态生成 -->
+                    </div>
+                    {# 原有的编辑区 #}
+                    <textarea id="novel-content" class="novel-editor" placeholder="在这里编辑你的小说内容..."></textarea>
+                    <div class="prompt-bar">
+                        <!-- Remove Drag Handle -->
+                        <!-- <div class="prompt-drag-handle">···</div> -->
+                        <div class="prompt-row">
+                            <!-- 新增：模板选择、AI服务选择、字数、风格 -->
+                            <div class="prompt-options">
+                                <div>
+                                    <label for="template-select">模板:</label>
+                                    <select id="template-select" name="template_id">
+                                        <option value="">-- 选择模板 --</option>
+                                        <!-- 模板选项将由 JS 填充 -->
+                                    </select>
+                                </div>
+                                <!-- 新增 AI 服务选择 -->
+                                <div>
+                                    <label for="ai-service-select">服务:</label>
+                                    <select id="ai-service-select" name="ai_service_config_id">
+                                        <option value="">-- 使用默认 --</option>
+                                        <!-- AI 服务选项将由 JS 填充 -->
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="word-count-input">字数:</label>
+                                    <input type="number" id="word-count-input" value="500" min="10" max="4000" step="10">
+                                </div>
+                                <div>
+                                    <label for="style-input">风格:</label>
+                                    <input type="text" id="style-input" placeholder="例如：奇幻、科幻...">
+                                </div>
+                            </div>
+                            <!-- 提示词输入区 -->
+                            <textarea class="prompt-input" placeholder="输入AI提示词..." rows="3"></textarea> <!-- Increased default rows -->
+                            <!-- Remove Word Count -->
+                            <!-- <span class="word-count-label">预期字数</span> -->
+                            <!-- <input class="word-count-input" type="number" min="0" max="10000" value="500" step="1"> -->
+                            <div class="prompt-actions">
+                                <button id="generate-btn" type="button">生成</button>
+                                <button id="retry-btn" type="button">重试</button>
+                                <!-- 新增撤销按钮，默认隐藏 -->
+                                <button id="undo-gen-btn" type="button" style="display: none; background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;" title="撤销上次生成的内容">撤销 [x]</button>
+                                <button id="save-btn" type="button">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧设定书显示区 -->
+        <div class="right-sidebar">
+             <h3 id="right-sidebar-title">
+                 <span class="book-title-text">设定详情</span>
+                 <span class="word-count-badge" style="display: none;"></span> <!-- Initially hidden -->
+             </h3>
+            <div id="setting-content">
+                <p>点击左侧设定书查看详情</p>
+                <!-- 设定内容将由 JS 动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div id="context-menu" class="context-menu">
+        <div data-action="rename">重命名</div>
+        <div data-action="delete">删除</div>
+    </div>
+
+    <!-- 创建菜单 -->
+     <div id="create-menu">
+         <div data-type="folder">文件夹</div>
+         <div data-type="book">书籍</div>
+         <div data-type="setting">设定书</div>
+     </div>
+
+
+    <script>
+        // 移除本地示例数据
+        // let fileData = [ ... ];
+
+        const fileList = document.getElementById('file-list');
+        const contextMenu = document.getElementById('context-menu');
+        const createMenu = document.getElementById('create-menu');
+        const createBtn = document.getElementById('create-btn');
+        const deleteBtn = document.getElementById('delete-btn');
+        const settingContent = document.getElementById('setting-content');
+        const novelContent = document.getElementById('novel-content');
+        const rightSidebarTitle = document.getElementById('right-sidebar-title');
+        const bookTitleTextSpan = rightSidebarTitle.querySelector('.book-title-text'); // Get title span
+        const wordCountBadgeSpan = rightSidebarTitle.querySelector('.word-count-badge'); // Get badge span
+        const autoSaveToggle = document.getElementById('auto-save-toggle'); // 获取自动保存开关
+        const centralDisplayArea = document.getElementById('central-display-area'); // 获取中央显示区域
+        const promptBar = document.querySelector('.prompt-bar'); // 获取提示词栏
+        const templateSelect = document.getElementById('template-select');
+        const wordCountInput = document.getElementById('word-count-input');
+        const styleInput = document.getElementById('style-input');
+        const promptInput = document.querySelector('.prompt-input'); // 获取提示词输入框
+        const generateBtn = document.getElementById('generate-btn');
+        const aiServiceSelect = document.getElementById('ai-service-select'); // 获取 AI 服务下拉列表
+        const undoGenBtn = document.getElementById('undo-gen-btn'); // 获取撤销按钮
+
+        // Variable to store the range of the last AI generated text
+        let lastGeneratedRange = null; 
+        let isGenerating = false; // Flag to prevent concurrent generation requests
+
+        // --- Function to handle the actual generation logic ---
+        async function triggerGeneration() {
+            if (isGenerating) {
+                console.log('Generation already in progress, ignoring trigger.');
+                return; // Prevent concurrent requests
+            }
+            isGenerating = true;
+            generateBtn.disabled = true;
+            undoGenBtn.disabled = true; // Also disable undo during generation
+            generateBtn.textContent = '生成中...';
+            lastGeneratedRange = null; // Reset undo state before new generation
+            undoGenBtn.style.display = 'none';
+
+            // Gather all necessary data
+            const selectedTemplateId = templateSelect.value;
+            const selectedAiServiceId = aiServiceSelect.value; 
+
+            if (!selectedTemplateId) {
+                alert('请先选择一个提示词模板！');
+                isGenerating = false;
+                generateBtn.disabled = false;
+                generateBtn.textContent = '生成';
+                return;
+            }
+
+            const templateId = parseInt(selectedTemplateId, 10);
+            const editorContent = novelContent.value;
+            const cursorPos = novelContent.selectionStart;
+            const 前文 = editorContent.substring(0, cursorPos);
+            const 后文 = editorContent.substring(cursorPos);
+            const 提示词 = promptInput.value;
+            const 字数 = parseInt(wordCountInput.value, 10) || 500;
+            const 风格 = styleInput.value || '默认';
+            const 设定 = [];
+            const settingListElement = settingContent.querySelector('.setting-list');
+            if (settingListElement) {
+                const settingItems = settingListElement.querySelectorAll('.setting-item');
+                settingItems.forEach(item => {
+                    const checkbox = item.querySelector('.setting-enabled-toggle');
+                    const textarea = item.querySelector('.setting-text-input');
+                    if (checkbox && checkbox.checked && textarea && textarea.value.trim()) {
+                        设定.push({ text: textarea.value.trim(), enabled: true });
+                    }
+                });
+            }
+
+            const requestData = {
+                template_id: templateId,
+                input_data: { '前文': 前文, '后文': 后文, '提示词': 提示词, '字数': 字数, '风格': 风格, '设定': 设定 }
+            };
+            if (selectedAiServiceId && selectedAiServiceId !== "") { 
+                requestData.ai_service_config_id = parseInt(selectedAiServiceId, 10);
+            } else {
+                console.log("AI Service: Using user's default setting.");
+            }
+
+            console.log("准备发送到 /api/generate-with-template 的数据:", JSON.stringify(requestData, null, 2));
+
+            let generatedText = null;
+            try {
+                const response = await fetch('/api/generate-with-template', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || `HTTP error! status: ${response.status}`);
+                if (result && result.generated_text) {
+                   generatedText = result.generated_text;
+                } else {
+                   console.warn("API successful but no generated_text received.", result);
+                   throw new Error('AI 服务未返回有效内容。');
+               }
+                 
+                if (generatedText !== null && generatedText.length > 0) {
+                    const currentContent = novelContent.value;
+                    const selectionStart = novelContent.selectionStart;
+                    const selectionEnd = novelContent.selectionEnd;
+                    novelContent.value = currentContent.slice(0, selectionStart) + generatedText + currentContent.slice(selectionEnd);
+                    const newCursorPos = selectionStart + generatedText.length;
+                    novelContent.focus();
+                    novelContent.setSelectionRange(newCursorPos, newCursorPos);
+                    
+                    lastGeneratedRange = { start: selectionStart, end: newCursorPos };
+                    undoGenBtn.style.display = 'block'; 
+                    undoGenBtn.disabled = false;
+                    console.log('Generation successful, undo enabled for range:', lastGeneratedRange);
+                    
+                    novelContent.dispatchEvent(new Event('input', { bubbles: true }));
+                } else {
+                     lastGeneratedRange = null;
+                     undoGenBtn.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('生成内容失败:', error);
+                alert(`生成失败: ${error.message}`);
+                lastGeneratedRange = null;
+                undoGenBtn.style.display = 'none';
+            } finally {
+                 generateBtn.textContent = '生成';
+                 generateBtn.disabled = false;
+                 undoGenBtn.disabled = !lastGeneratedRange; // Disable undo if no valid range
+                 isGenerating = false; // Release the lock
+            }
+        }
+
+        // --- Add Listener for Prompt Input Enter Key ---
+        if (promptInput && generateBtn) {
+            promptInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault(); // Prevent default newline insertion
+                    console.log('Enter pressed in prompt, triggering generation function...');
+                    triggerGeneration(); // Call the generation function directly
+                }
+            });
+        }
+
+        let contextTarget = null;
+        let draggedItemData = null;
+        let currentDragTargetElement = null;
+        let insertPosition = null;
+        let currentEditingBookTitle = null;
+        let isWordCountLimitAlertShown = false; // 新增：跟踪警告是否已显示
+        let autoSaveTimer = null; // 用于自动保存的计时器
+        const AUTO_SAVE_DELAY = 1500; // 1.5秒无输入后自动保存
+        let isAutoSaveOnNavigateEnabled = false; // 新增：跟踪离开时自动保存的状态
+
+        // --- API 辅助函数 ---
+        async function fetchAPI(url, options = {}) {
+            // 默认添加常用的头信息
+            const headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                ...(options.headers || {}),
+            };
+            // 如果是 PUT 或 POST，确保 body 是 JSON 字符串
+            if (options.body && typeof options.body !== 'string') {
+                options.body = JSON.stringify(options.body);
+            }
+
+            try {
+                const response = await fetch(url, { ...options, headers });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Request failed with status: ' + response.status }));
+                    console.error(`API Error (${response.status}): ${errorData.error || 'Unknown error'}`, url, options);
+                    alert(`操作失败: ${errorData.error || '未知错误'}`); // 简单的用户反馈
+                    return null; // 返回 null 表示失败
+                }
+                // 对于 DELETE 等可能没有返回体的成功响应
+                if (response.status === 204 || response.headers.get('Content-Length') === '0') {
+                     return { success: true }; // 返回一个成功标识
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('Network or fetch error:', error, url, options);
+                alert('网络错误或请求失败');
+                return null;
+            }
+        }
+
+        // 获取项目列表
+        async function fetchItems(parentId = 'root') {
+            return await fetchAPI(`/api/items?parent_id=${parentId}`);
+        }
+
+        // 创建新项目
+        async function createItemAPI(name, type, parentId = 'root') {
+            return await fetchAPI('/api/items', {
+                method: 'POST',
+                body: { name, type, parentId }
+            });
+        }
+
+        // 删除项目
+        async function deleteItemAPI(itemId) {
+            // DELETE 请求通常返回 200 或 204， fetchAPI 会处理
+            return await fetchAPI(`/api/items/${itemId}`, { method: 'DELETE' });
+        }
+
+        // 重命名项目
+        async function renameItemAPI(itemId, newName) {
+            return await fetchAPI(`/api/items/${itemId}/rename`, {
+                method: 'PUT',
+                body: { name: newName }
+            });
+        }
+
+        // 移动项目
+        async function moveItemAPI(itemId, targetParentId, targetBeforeId = null) {
+            return await fetchAPI(`/api/items/${itemId}/move`, {
+                 method: 'PUT',
+                 body: { targetParentId, targetBeforeId }
+             });
+        }
+
+        // 获取内容
+        async function getContentAPI(itemId) {
+             return await fetchAPI(`/api/items/${itemId}/content`);
+        }
+
+        // 更新内容
+        async function updateContentAPI(itemId, type, data) {
+            let body = {};
+            if (type === 'book') {
+                body = { content: data };
+            } else if (type === 'setting') {
+                // 假设 data 是一个 setting 字符串数组
+                body = { settings: data }; 
+            }
+            return await fetchAPI(`/api/items/${itemId}/content`, {
+                 method: 'PUT',
+                 body: body
+             });
+        }
+
+        // 切换文件夹折叠状态
+        async function toggleFolderAPI(itemId, collapsed) {
+            return await fetchAPI(`/api/items/${itemId}/toggle`, {
+                 method: 'PUT',
+                 body: { collapsed }
+             });
+        }
+
+        // 新增：关联设定书 API
+        async function associateSettingAPI(bookId, settingBookId) {
+            return await fetchAPI(`/api/items/${bookId}/associate_setting`, {
+                method: 'POST',
+                body: { settingBookId }
+            });
+        }
+
+        // --- 字符统计函数 (原 countWords) ---
+        function countCharacters(text) {
+            // 直接返回字符串的长度即为字符数
+            return text ? text.length : 0;
+            /*
+            // 旧的基于单词的计算方式
+            if (!text) {
+                return 0;
+            }
+            const words = text.match(/\S+/g);
+            const count = words ? words.length : 0;
+            // console.log('[countWords] Input Text Length:', text.length, 'Calculated Count:', count); // Log input length and calculated count
+            return count;
+            */
+        }
+
+        // --- 新增：保存当前书籍内容的函数 ---
+        async function saveCurrentBookContent() {
+            const currentId = novelContent.dataset.currentItemId;
+            const currentType = novelContent.dataset.currentItemType;
+            const saveBtn = document.getElementById('save-btn'); // 获取保存按钮
+            let wasTriggeredByInput = false; // 区分是输入触发还是导航触发 (虽然现在输入不触发了，但保留结构)
+
+            if (saveBtn && saveBtn.classList.contains('save-success')) {
+                // 如果按钮已经是成功状态，可能快速连续触发，先移除旧状态
+                saveBtn.classList.remove('save-success');
+            }
+
+            if (currentId && currentType === 'book') {
+                console.log(`[Save Trigger] Saving content for book ${currentId}...`);
+                // 可选：添加一个不那么干扰的保存状态指示，例如在标题旁边
+                // wordCountBadgeSpan.textContent = '保存中...';
+
+                if (saveBtn) { // 临时禁用手动保存按钮防止冲突
+                    saveBtn.disabled = true;
+                    saveBtn.textContent = '保存中...';
+                }
+
+                const result = await updateContentAPI(currentId, currentType, novelContent.value);
+
+                if (saveBtn) { // 恢复按钮
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '保存'; // 恢复原始文本
+                }
+
+                if (result) {
+                    console.log('[Save Success] Content saved successfully.');
+                    // 可选：短暂显示保存成功状态 (变绿)
+                    if (saveBtn) {
+                        saveBtn.classList.add('save-success');
+                        setTimeout(() => {
+                           saveBtn.classList.remove('save-success');
+                        }, 1500); // 1.5秒后移除绿色状态
+                    }
+                    // 确保字数统计在保存后更新（如果内容在此期间变化）
+                    updateRightSidebarTitle(currentEditingBookTitle, novelContent.value);
+                } else {
+                     console.error('[Save Failed] Failed to save content.');
+                     if (saveBtn) {
+                        // 可视化失败，例如短暂变红？或只留 log
+                        saveBtn.textContent = '保存失败!';
+                         setTimeout(() => {
+                              if (!saveBtn.disabled) saveBtn.textContent = '保存'; // 恢复文本
+                         }, 2000);
+                     }
+                     // 可以添加更强的错误提示
+                     // alert('自动保存失败，请检查网络或稍后手动保存。');
+                }
+            } else {
+                console.log('[Save Skipped] No book selected or not editing a book.');
+            }
+        }
+
+        // --- 渲染函数 (后续需要修改以处理异步加载的子项) ---
+        function renderFileList(data, parentElement) {
+            parentElement.innerHTML = ''; // 清空旧列表
+            if (!data || !Array.isArray(data)) {
+                console.error("renderFileList received invalid data:", data);
+                parentElement.innerHTML = '<li>加载失败或无数据</li>';
+                return;
+            }
+            data.forEach(item => {
+                const li = document.createElement('li');
+                li.classList.add('file-item');
+                li.dataset.id = item.id;
+                li.dataset.type = item.type;
+                // 从 API 数据中获取 collapsed 状态
+                if (item.type === 'folder' && item.collapsed) {
+                    li.classList.add('collapsed');
+                }
+                li.draggable = true;
+
+                let iconClass = '';
+                let toggleIcon = '';
+                if (item.type === 'folder') {
+                    iconClass = 'fa-folder';
+                    // 注意：这里的图标状态基于 item.collapsed，点击时需要切换
+                    toggleIcon = `<i class="fas fa-chevron-right folder-toggle"></i>`;
+                } else if (item.type === 'book') {
+                    iconClass = 'fa-book';
+                } else if (item.type === 'setting') {
+                    iconClass = 'fa-scroll';
+                }
+
+                li.innerHTML = `
+                    ${toggleIcon}
+                    <i class="fas ${iconClass}"></i>
+                    <span class="item-name">${item.name}</span>
+                `;
+
+                // --- 事件监听器 (后续需要调整) ---
+                li.addEventListener('click', (event) => handleItemClick(event, item, li)); // 传递 li 元素
+                li.addEventListener('contextmenu', (event) => showContextMenu(event, li, item));
+
+                // 拖放事件 (后续需要调整，特别是 handleDrop)
+                li.addEventListener('dragstart', (event) => handleDragStart(event, item, li));
+                li.addEventListener('dragenter', (event) => handleDragEnter(event, item, li));
+                li.addEventListener('dragover', (event) => handleDragOver(event, item, li));
+                li.addEventListener('dragleave', (event) => handleDragLeave(event, li));
+                li.addEventListener('drop', (event) => handleDrop(event, item, li));
+
+                parentElement.appendChild(li);
+
+                // 注意：不再递归渲染子项，子项将在点击文件夹时按需加载
+                // if (item.type === 'folder' && item.children && item.children.length > 0) {
+                //    const ul = document.createElement('ul');
+                //    renderFileList(item.children, ul); // 不再递归
+                //    li.appendChild(ul);
+                // }
+                // 为文件夹预留一个空的 <ul> 容器，用于后续加载子项
+                if (item.type === 'folder') {
+                    const ul = document.createElement('ul');
+                    ul.style.display = item.collapsed ? 'none' : 'block'; // 根据状态显示/隐藏
+                    li.appendChild(ul);
+                }
+            });
+        }
+
+        // --- 事件处理函数 (需要大幅修改) ---
+
+        async function handleItemClick(event, itemData, itemElement) {
+             event.stopPropagation();
+            console.log('Clicked:', itemData.name);
+
+            // --- 新增：离开时自动保存逻辑 ---
+            const previouslyEditingItemId = novelContent.dataset.currentItemId;
+            const previouslyEditingItemType = novelContent.dataset.currentItemType;
+
+            if (isAutoSaveOnNavigateEnabled &&
+                previouslyEditingItemId && previouslyEditingItemType === 'book' &&
+                previouslyEditingItemId !== String(itemData.id) // 确保不是点击当前正在编辑的书 (id可能是数字或字符串)
+               ) {
+                 console.log(`[AutoSave Navigate] Triggering save for book ${previouslyEditingItemId} before switching to ${itemData.name}`);
+                 // 清除可能存在的延时保存计时器，避免重复保存
+                 if (autoSaveTimer) {
+                     clearTimeout(autoSaveTimer);
+                     autoSaveTimer = null;
+                     console.log('[AutoSave Navigate] Cleared pending input auto-save timer.');
+                 }
+                 await saveCurrentBookContent(); // 等待保存完成
+                 console.log(`[AutoSave Navigate] Save completed for ${previouslyEditingItemId}.`);
+            }
+            // --- 结束：离开时自动保存逻辑 ---
+
+            currentEditingBookTitle = null;
+            isWordCountLimitAlertShown = false; // 重置提醒标记
+
+            if (itemData.type === 'folder') {
+                const folderId = itemData.id;
+                const isCollapsed = itemElement.classList.toggle('collapsed');
+                const childrenUl = itemElement.querySelector('ul');
+                
+                // 更新服务器上的折叠状态
+                await toggleFolderAPI(folderId, isCollapsed);
+
+                if (!isCollapsed && childrenUl && childrenUl.children.length === 0) {
+                     // 如果是展开状态且子列表为空，则加载子项
+                     console.log(`Fetching children for folder ${folderId}...`);
+                     childrenUl.innerHTML = '<li><i>加载中...</i></li>'; // 显示加载提示
+                     const childrenData = await fetchItems(folderId);
+                     if (childrenData) {
+                         renderFileList(childrenData, childrenUl); // 渲染子项到 ul 中
+                     } else {
+                         childrenUl.innerHTML = '<li><i>加载失败</i></li>';
+                     }
+                }
+                // 控制 ul 的显示/隐藏
+                if (childrenUl) {
+                     childrenUl.style.display = isCollapsed ? 'none' : 'block';
+                }
+                 // 点击文件夹时，重置右侧标题
+                updateRightSidebarTitle('设定详情');
+
+            } else if (itemData.type === 'book') {
+                console.log(`[Book Click] Start handling click for: ${itemData.name} (ID: ${itemData.id})`);
+                clearSettingDisplay();
+                console.log("[Book Click] Right sidebar cleared.");
+                console.log("[Book Click] Fetching content...");
+                const contentData = await getContentAPI(itemData.id);
+                console.log("[Book Click] Received content data:", contentData);
+
+                if (contentData) {
+                     currentEditingBookTitle = itemData.name;
+                     // Initial update with fetched content
+                     updateRightSidebarTitle(currentEditingBookTitle, contentData.content || '');
+
+                    console.log("[Book Click] Setting novel editor content...");
+                    novelContent.value = contentData.content || '';
+                    novelContent.dataset.currentItemId = itemData.id;
+                    novelContent.dataset.currentItemType = 'book';
+                    console.log("[Book Click] Novel editor content set.");
+                    
+                    // 检查并显示关联的设定书
+                    if (contentData.associatedSetting) {
+                         console.log('[Book Click] Book has associated setting, calling displaySettingDetails...', contentData.associatedSetting);
+                         displaySettingDetails(contentData.associatedSetting);
+                         console.log("[Book Click] displaySettingDetails for associated setting finished.");
+                    } else {
+                         console.log('[Book Click] Book does not have an associated setting.');
+                         // 如果书籍没有关联设定，#setting-content 应该保持清空状态
+                         // clearSettingDisplay 已经处理了
+                    }
+                } else {
+                     console.error('[Book Click] Failed to fetch content data.');
+                     novelContent.value = '加载内容失败。';
+                     delete novelContent.dataset.currentItemId;
+                     delete novelContent.dataset.currentItemType;
+                     // 加载失败时，显示书名但不带字数
+                     updateRightSidebarTitle(itemData.name); // Show title without count on failure
+                     currentEditingBookTitle = null;
+                     isWordCountLimitAlertShown = false; // Reset flag
+                }
+                console.log("[Book Click] Finished handling click.");
+            } else if (itemData.type === 'setting') {
+                 console.log(`Fetching details for setting: ${itemData.name}`);
+                 // 点击设定书时清空书籍编辑器
+                 novelContent.value = '';
+                 delete novelContent.dataset.currentItemId;
+                 delete novelContent.dataset.currentItemType;
+                 const settingData = await getContentAPI(itemData.id); // API 现在返回 to_dict 格式
+                 if (settingData) {
+                     displaySettingDetails(settingData);
+                     settingContent.dataset.currentItemId = itemData.id;
+                     settingContent.dataset.currentItemType = 'setting';
+                 } else {
+                     clearSettingDisplay();
+                     settingContent.innerHTML = '<p>加载设定失败。</p>';
+                     delete settingContent.dataset.currentItemId;
+                     delete settingContent.dataset.currentItemType;
+                     // *** 修改点：点击设定书时，重置主标题 ***
+                     updateRightSidebarTitle('设定详情'); // Reset title
+                     isWordCountLimitAlertShown = false; // Reset flag
+                 }
+            }
+        }
+
+        // function toggleFolder(folderItem) { ... } // 被 handleItemClick 替代
+
+        // Updated displaySettingDetails for new layout
+        function displaySettingDetails(settingItem) {
+            settingContent.innerHTML = ''; // Clear previous content
+
+            // Create Header
+            const headerDiv = document.createElement('div');
+            headerDiv.classList.add('setting-header');
+
+            const titleH3 = document.createElement('h3');
+            titleH3.textContent = settingItem.name;
+            headerDiv.appendChild(titleH3);
+
+            // Create Actions within Header
+            const actionsDiv = document.createElement('div');
+            actionsDiv.classList.add('setting-actions');
+            actionsDiv.innerHTML = `
+                <button id="add-setting-btn" title="添加新设定">+</button>
+                <button id="save-settings-btn" title="保存当前设定书的更改">保存设定</button>
+            `;
+            headerDiv.appendChild(actionsDiv);
+
+            // Append Header to settingContent
+            settingContent.appendChild(headerDiv);
+
+            // Create and Populate Setting List
+            const settingList = document.createElement('ul');
+            settingList.classList.add('setting-list');
+            settingList.dataset.settingBookId = settingItem.id; 
+
+            const settingsData = settingItem.settings || [];
+
+            if (settingsData.length > 0) {
+                settingsData.forEach((setting, index) => {
+                    const li = createSettingItemElement(setting, index);
+                    settingList.appendChild(li);
+                });
+             } else {
+                // Add a placeholder if no settings exist yet
+                const placeholder = document.createElement('p');
+                placeholder.textContent = '暂无详细设定，点击 "+" 添加。';
+                placeholder.style.textAlign = 'center';
+                placeholder.style.color = '#6c757d';
+                placeholder.style.marginTop = '20px';
+                settingList.appendChild(placeholder); // Append placeholder to the list
+            }
+            
+            // Append Setting List to settingContent
+            settingContent.appendChild(settingList);
+        }
+
+        // Helper to create a single setting item LI element
+        function createSettingItemElement(settingData, index) {
+            const li = document.createElement('li');
+            li.classList.add('setting-item');
+            li.dataset.index = index; // Keep track of original index if needed
+
+            const text = settingData.text || '';
+            const enabled = settingData.enabled !== undefined ? settingData.enabled : true; // Default to enabled
+
+            li.innerHTML = `
+                <div class="setting-item-controls">
+                    <input type="checkbox" class="setting-enabled-toggle" ${enabled ? 'checked' : ''} title="是否启用此设定">
+                </div>
+                <textarea class="setting-text-input" rows="1">${text}</textarea>
+                <div class="setting-item-controls">
+                     <button class="delete-setting-btn" title="删除此设定">-</button>
+                </div>
+            `;
+            // Auto-adjust textarea height initially and on input
+            const textarea = li.querySelector('.setting-text-input');
+            adjustTextareaHeight(textarea);
+            textarea.addEventListener('input', () => adjustTextareaHeight(textarea));
+            
+            return li;
+        }
+
+        // Helper to auto-adjust textarea height
+        function adjustTextareaHeight(textarea) {
+            textarea.style.height = 'auto'; // Reset height
+            textarea.style.height = textarea.scrollHeight + 'px'; // Set to scroll height
+        }
+
+        // --- Event Delegation for Settings --- 
+        settingContent.addEventListener('click', async (event) => {
+            const target = event.target;
+            
+            // Handle Add Setting Button
+            if (target.id === 'add-setting-btn') {
+                const settingList = settingContent.querySelector('.setting-list');
+                if (settingList) {
+                    const newItem = createSettingItemElement({ text: '', enabled: true }, settingList.children.length);
+                    settingList.appendChild(newItem);
+                    // Focus the new textarea
+                    newItem.querySelector('textarea').focus();
+                }
+            }
+            
+            // Handle Delete Setting Button
+            if (target.classList.contains('delete-setting-btn')) {
+                const settingItem = target.closest('.setting-item');
+                if (settingItem) {
+                     if (confirm('确定要删除这条设定吗？')) {
+                         settingItem.remove();
+                     }
+                }
+            }
+
+            // Handle Save Settings Button
+            if (target.id === 'save-settings-btn') {
+                const settingList = settingContent.querySelector('.setting-list');
+                const settingBookId = settingList ? settingList.dataset.settingBookId : null;
+                
+                if (settingList && settingBookId) {
+                    const updatedSettings = [];
+                    const settingItems = settingList.querySelectorAll('.setting-item');
+                    settingItems.forEach(item => {
+                        const textarea = item.querySelector('.setting-text-input');
+                        const checkbox = item.querySelector('.setting-enabled-toggle');
+                        if (textarea && checkbox) {
+                            updatedSettings.push({
+                                text: textarea.value,
+                                enabled: checkbox.checked
+                            });
+                        }
+                    });
+
+                    console.log(`Saving settings for book ${settingBookId}:`, updatedSettings);
+                    target.textContent = '保存中...';
+                    target.disabled = true;
+
+                    const result = await updateContentAPI(settingBookId, 'setting', updatedSettings);
+                    
+                    target.textContent = '保存设定';
+                    target.disabled = false;
+
+                    if (result) {
+                         console.log('Settings saved successfully.');
+                         target.textContent = '已保存 ✓';
+                         setTimeout(() => { target.textContent = '保存设定'; }, 2000);
+                     } else {
+                         console.error('Failed to save settings.');
+                         // Error already alerted by fetchAPI
+                     }
+                } else {
+                     console.error('Could not find setting list or book ID for saving.');
+                     alert('无法保存设定，缺少必要信息。');
+                }
+            }
+        });
+
+        function showContextMenu(event, element, item) {
+            event.preventDefault();
+            event.stopPropagation();
+            // item 现在是 API 返回的 item 数据
+            contextTarget = { element, item };
+            contextMenu.style.top = `${event.clientY}px`;
+            contextMenu.style.left = `${event.clientX}px`;
+            contextMenu.style.display = 'block';
+        }
+
+        function hideContextMenu() {
+            contextMenu.style.display = 'none';
+            contextTarget = null;
+        }
+
+        function showCreateMenu(event) {
+             event.stopPropagation(); // 防冒泡
+             // 定位菜单在按钮下方
+             const rect = createBtn.getBoundingClientRect();
+             createMenu.style.top = `${rect.bottom + 5}px`;
+             createMenu.style.left = `${rect.left}px`;
+             createMenu.style.display = 'block';
+        }
+
+        function hideCreateMenu() {
+            createMenu.style.display = 'none';
+        }
+
+        // 修改 startRename 以调用 API
+        function startRename(target) {
+            const itemNameSpan = target.element.querySelector('.item-name');
+            if (!itemNameSpan) return;
+
+            const currentName = target.item.name;
+            const itemId = target.item.id;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentName;
+            input.classList.add('rename-input');
+
+            itemNameSpan.replaceWith(input);
+            input.focus();
+            input.select();
+
+            const finishRename = async (save) => {
+                 const newName = input.value.trim();
+                input.removeEventListener('blur', onBlur);
+                input.removeEventListener('keydown', onKeydown);
+
+                if (save && newName && newName !== currentName) {
+                    console.log(`Renaming item ${itemId} to ${newName}...`);
+                    const updatedItem = await renameItemAPI(itemId, newName);
+                    if (updatedItem) {
+                        // 更新成功，用新数据替换旧 span
+                        const newSpan = document.createElement('span');
+                        newSpan.classList.add('item-name');
+                        newSpan.textContent = updatedItem.name;
+                        input.replaceWith(newSpan);
+                        // 更新 contextTarget 中的数据（如果还需要的话）
+                        target.item.name = updatedItem.name;
+                    } else {
+                         // 重命名失败，恢复原样
+                         input.replaceWith(itemNameSpan);
+                         alert('重命名失败');
+                    }
+                } else {
+                    // 取消或未更改，恢复原样
+                    input.replaceWith(itemNameSpan);
+                }
+            };
+
+            const onBlur = () => finishRename(true);
+            const onKeydown = (e) => {
+                if (e.key === 'Enter') {
+                     finishRename(true);
+                } else if (e.key === 'Escape') {
+                     finishRename(false);
+                 }
+            };
+
+            input.addEventListener('blur', onBlur);
+            input.addEventListener('keydown', onKeydown);
+        }
+
+        // 修改 deleteItem 以重置标题和全局变量
+        async function deleteItem(targetItemData) {
+            const itemName = targetItemData.name;
+            const itemId = targetItemData.id;
+            const itemType = targetItemData.type;
+
+            if (confirm(`确定要删除 ${itemName} 吗？` + (itemType === 'folder' ? ' (其内容也将被删除)' : ''))) {
+                console.log(`Deleting item ${itemId}...`);
+                const result = await deleteItemAPI(itemId);
+                if (result !== null) { 
+                    console.log(`Item ${itemId} deleted successfully (API call successful).`);
+                    // 从界面移除元素
+                    const elementSelector = `.file-item[data-id="${itemId}"]`;
+                    console.log(`Attempting to find element with selector: ${elementSelector}`);
+                    const elementToRemove = fileList.querySelector(elementSelector);
+                    console.log("Element to remove found in DOM:", elementToRemove);
+                    if (elementToRemove) {
+                        console.log("Removing element from UI...");
+                        elementToRemove.remove();
+                    } else {
+                         console.warn("Could not find element in DOM to remove.");
+                    }
+                    // 如果删除的是当前显示/编辑的项
+                    if (novelContent.dataset.currentItemId == itemId) {
+                         novelContent.value = '';
+                         delete novelContent.dataset.currentItemId;
+                         delete novelContent.dataset.currentItemType;
+                         // *** 修改点：重置标题和全局变量 ***
+                         currentEditingBookTitle = null;
+                         isWordCountLimitAlertShown = false; // Reset flag
+                         updateRightSidebarTitle('设定详情');
+                         clearSettingDisplay();
+                    }
+                    if (settingContent.dataset.currentItemId == itemId) {
+                         currentEditingBookTitle = null;
+                         isWordCountLimitAlertShown = false; // Reset flag
+                         clearSettingDisplay();
+                    }
+                } else {
+                     // result 为 null，表示 fetchAPI 内部出错 (已 alert)
+                     console.error(`Failed to delete item ${itemId} (API call failed).`);
+                }
+            }
+        }
+
+        // 修改 createNewItem 以调用 API
+        async function createNewItem(type) {
+             // TODO: 实现更友好的创建交互，比如在点击处创建或允许选择父文件夹
+             const defaultName = `新${type === 'folder' ? '文件夹' : type === 'book' ? '书籍' : '设定书'}`;
+             const parentId = 'root'; // 暂时默认在根目录创建
+
+             console.log(`Creating new ${type} named ${defaultName} under parent ${parentId}...`);
+             const newItemData = await createItemAPI(defaultName, type, parentId);
+
+             if (newItemData) {
+                 console.log('Item created:', newItemData);
+                 // 将新项添加到根列表的末尾
+                 const rootUl = document.getElementById('file-list');
+                 renderFileList([newItemData], rootUl); // 可以优化为只添加，而不是重新渲染整个根列表
+                 //  ^--- 这个 renderFileList 调用可能有问题，它会清空 rootUl
+                 // 改进：应该获取当前根列表，然后 append
+                 // 或者：重新 fetch 根列表并渲染
+                 await loadInitialItems(); // 简单起见，重新加载根目录
+
+                 // 找到新元素并开始重命名
+                 // 需要等待重新渲染完成
+                 setTimeout(() => {
+                    const newElement = rootUl.querySelector(`.file-item[data-id="${newItemData.id}"]`);
+             if (newElement) {
+                         startRename({ element: newElement, item: newItemData });
+                    }
+                 }, 100); // 短暂延迟确保元素已渲染
+             } else {
+                 console.error('Failed to create new item.');
+             }
+        }
+
+        // --- 拖放处理 (需要重写 handleDrop) ---
+
+        // handleDragStart 基本不变，但存储的是 API 返回的 item data
+        function handleDragStart(event, itemData, element) {
+            // 阻止事件冒泡到父元素，防止父元素的 dragstart 被触发
+            event.stopPropagation(); 
+
+            // itemData 就是从 API 获取的原始对象 {id, name, type, ...}
+            draggedItemData = itemData;
+            event.dataTransfer.setData('text/plain', itemData.id);
+             event.dataTransfer.effectAllowed = 'move';
+
+            // --- Custom Drag Image ---
+            // Create a simple representation (icon + name) for the drag image
+            const dragImage = document.createElement('div');
+            dragImage.style.display = 'inline-flex'; // Use flex for alignment
+            dragImage.style.alignItems = 'center';
+            dragImage.style.backgroundColor = 'rgba(100, 150, 250, 0.7)'; // Semi-transparent blue
+            dragImage.style.padding = '5px 10px';
+            dragImage.style.borderRadius = '4px';
+            dragImage.style.position = 'absolute'; // Position off-screen initially
+            dragImage.style.top = '-100px';
+            dragImage.style.left = '-1000px'; 
+            dragImage.style.pointerEvents = 'none'; // Prevent interference
+            dragImage.style.fontFamily = 'inherit'; // Use same font
+            dragImage.style.fontSize = '15px'; // Match item font size
+            dragImage.style.color = '#fff'; // White text for contrast
+
+            const icon = element.querySelector('i.fas:not(.folder-toggle)'); // Get the main icon, exclude toggle
+            const nameSpan = element.querySelector('.item-name');
+
+            if (icon) {
+                const iconClone = icon.cloneNode(true);
+                iconClone.style.marginRight = '8px'; // Keep spacing
+                iconClone.style.color = '#fff'; // Icon color
+                dragImage.appendChild(iconClone);
+            }
+            if (nameSpan) {
+                const nameClone = document.createElement('span');
+                nameClone.textContent = nameSpan.textContent;
+                dragImage.appendChild(nameClone);
+            }
+            // Add to body so setDragImage can capture it
+            document.body.appendChild(dragImage);
+            // Set the custom drag image (element, xOffset, yOffset)
+            event.dataTransfer.setDragImage(dragImage, 15, 15); 
+            // --- End Custom Drag Image ---
+
+            // Delay adding the dragging class to the original element
+            setTimeout(() => {
+                element.classList.add('dragging');
+                // Clean up the temporary drag image element *after* the browser has captured it
+                if (document.body.contains(dragImage)) {
+                     document.body.removeChild(dragImage);
+                }
+            }, 0);
+
+            console.log('Drag Start:', itemData.name, itemData.id);
+        }
+
+        // handleDragEnter, handleDragOver, handleDragLeave 主要负责视觉效果，逻辑不变
+        // ... (handleDragEnter, handleDragOver, handleDragLeave 函数保持不变) ...
+        function handleDragEnter(event, targetItemData, targetElement) {
+             event.preventDefault();
+             currentDragTargetElement = targetElement;
+        }
+        function handleDragOver(event, targetItemData, targetElement) {
+            event.preventDefault();
+             event.dataTransfer.dropEffect = 'move';
+
+            // 获取拖动项的类型
+            const draggedType = draggedItemData ? draggedItemData.type : null;
+            // 获取目标项的类型
+            const targetType = targetElement ? targetElement.dataset.type : null;
+
+            if (!draggedItemData || !targetElement || targetElement.dataset.id === String(draggedItemData.id)) {
+                 clearDropClasses();
+                 insertPosition = null;
+                 return;
+            }
+            clearDropClasses(targetElement);
+            const targetRect = targetElement.getBoundingClientRect();
+            const verticalMidpoint = targetRect.top + targetRect.height / 2;
+            const isOverTopHalf = event.clientY < verticalMidpoint;
+            
+            // --- 判断放置类型 --- 
+            insertPosition = null; // 重置
+
+            // Case 1: 拖动设定书到书籍上 -> 关联
+            if (draggedType === 'setting' && targetType === 'book') {
+                targetElement.classList.add('drag-over-associate');
+                insertPosition = 'associate';
+            }
+            // Case 2: 拖动到文件夹上 -> 放入或排序
+            else if (targetType === 'folder') {
+                const dropIntoFolderThreshold = targetRect.height * 0.2;
+                if (event.clientY < targetRect.top + dropIntoFolderThreshold) {
+                    targetElement.classList.add('drag-over-insert-before');
+                    insertPosition = 'before';
+                } else if (event.clientY > targetRect.bottom - dropIntoFolderThreshold) {
+                    targetElement.classList.add('drag-over-insert-after');
+                    insertPosition = 'after';
+                } else {
+                    // 检查是否拖入自身或子孙 (简单前端检查)
+                    // TODO: 更可靠的检查依赖后端或前端维护树
+                     targetElement.classList.add('drag-over-folder');
+                     insertPosition = 'folder';
+                }
+            }
+            // Case 3: 拖动到非文件夹/非书目标上（或设定书拖到非书上） -> 仅排序
+            else if (insertPosition !== 'associate') { // 排除已判断为 associate 的情况
+                if (isOverTopHalf) {
+                    targetElement.classList.add('drag-over-insert-before');
+                    insertPosition = 'before';
+                } else {
+                    targetElement.classList.add('drag-over-insert-after');
+                    insertPosition = 'after';
+                }
+            }
+
+            // Case 4: 拖到删除按钮
+            const deleteBtnTarget = event.target.closest('#delete-btn');
+            if (deleteBtnTarget) {
+                 clearDropClasses();
+                 deleteBtnTarget.classList.add('drag-over-delete');
+                 insertPosition = 'delete';
+                 currentDragTargetElement = deleteBtnTarget;
+            } else if (currentDragTargetElement === deleteBtn) {
+                 deleteBtn.classList.remove('drag-over-delete');
+                 if (targetElement) currentDragTargetElement = targetElement;
+                 else currentDragTargetElement = null;
+            }
+        }
+        function handleDragLeave(event, element) {
+            if (element) {
+                element.classList.remove('drag-over-folder', 'drag-over-insert-before', 'drag-over-insert-after', 'drag-over-associate'); // 添加移除 associate
+            }
+            if (event.target.id === 'delete-btn' || element === deleteBtn) {
+                 deleteBtn.classList.remove('drag-over-delete');
+            }
+            const relatedTarget = event.relatedTarget;
+            if (!relatedTarget || (!relatedTarget.closest('.file-item') && relatedTarget.id !== 'delete-btn')) {
+                 insertPosition = null;
+            }
+        }
+
+
+        // 重写 handleDrop 以调用 API
+        async function handleDrop(event, targetItemData, targetElement) {
+             event.preventDefault();
+            event.stopPropagation();
+            const currentInsertPosition = insertPosition;
+            const currentTargetElement = targetElement;
+            const currentTargetData = targetItemData; // Target item
+            const currentDraggedItemData = draggedItemData ? { ...draggedItemData } : null; // Item being dragged
+            const draggedId = currentDraggedItemData ? currentDraggedItemData.id : null;
+            // *** 修正：使用 parent_id ***
+            const originalParentId = currentDraggedItemData ? (currentDraggedItemData.parent_id || 'root') : null;
+
+            clearDropClasses();
+            cleanupDragState(); // This resets insertPosition, so we use currentInsertPosition
+
+            if (!draggedId || !currentInsertPosition || (currentTargetElement && currentTargetElement.dataset.id === String(draggedId))) {
+                console.log("Drop cancelled: Invalid state after cleanup or dropping on self.");
+                return;
+            }
+
+            console.log(`Attempting Drop: Item ${draggedId} (${currentDraggedItemData?.type}) | Target: ${currentTargetData ? currentTargetData.id : (currentTargetElement === deleteBtn ? 'delete' : 'root')} (${currentTargetData?.type}) | Position: ${currentInsertPosition}`);
+
+            let result = null;
+            let targetParentId = 'root'; // Default to root if dropping outside items (e.g., empty space)
+
+            if (currentInsertPosition === 'delete') {
+                 // 删除逻辑
+                 console.log(`CONFIRM DELETE: Checking dragged item data...`);
+                 if (!currentDraggedItemData) {
+                     console.error("Drop to delete failed: No dragged item data found.");
+                     return;
+                 }
+                 console.log(`Initiating delete for item ${draggedId} (${currentDraggedItemData.name})...`);
+                 // 调用 deleteItem 函数 (它内部会处理 API 和 UI 移除)
+                 await deleteItem(currentDraggedItemData);
+                 // *** 新增：删除成功后刷新原父列表 ***
+                 console.log(`Refreshing original parent list (${originalParentId}) after deletion.`);
+                 await reloadItemsForParent(originalParentId === 'root' ? null : originalParentId);
+
+            } else if (currentInsertPosition === 'associate') {
+                 // 关联逻辑 (不变)
+                 if (currentDraggedItemData.type === 'setting' && currentTargetData.type === 'book') {
+                     const bookId = currentTargetData.id;
+                     const settingBookId = currentDraggedItemData.id;
+                     console.log(`Initiating association: Book ${bookId} with Setting ${settingBookId}`);
+                     result = await associateSettingAPI(bookId, settingBookId);
+                     if (result) {
+                         console.log('Association successful.', result);
+                         alert(`《${currentTargetData.name}》已成功关联设定书《${currentDraggedItemData.name}》！`);
+                         if (novelContent.dataset.currentItemId == bookId) {
+                             const updatedContent = await getContentAPI(bookId);
+                             if (updatedContent && updatedContent.associatedSetting) {
+                                // 需要再次获取完整设定详情才能显示
+                                const fullSettingData = await getContentAPI(updatedContent.associatedSetting.id);
+                                if (fullSettingData) {
+                                    displaySettingDetails(fullSettingData);
+                                } else {
+                                    clearSettingDisplay();
+                                }
+                             }
+                         }
+                     } else {
+                          console.error("Association API call failed.");
+                     }
+                 } else {
+                     console.warn('Invalid associate drop: Types mismatch.');
+                 }
+            } else { // Handle move and reorder
+                 let targetBeforeId = null; // ID of the item we are inserting before
+                 let actualNewParentId = null; // Parent ID for the API call (null for root)
+
+                 if (currentInsertPosition === 'folder' && currentTargetData && currentTargetData.type === 'folder') {
+                     // Dropping into a folder
+                     targetParentId = currentTargetData.id; // Set parent to the folder ID
+                     actualNewParentId = targetParentId;
+                     targetBeforeId = null; // Append to the end by default when dropping *on* a folder
+                     console.log(`Drop target: Into folder ${targetParentId}`);
+                 } else if (currentInsertPosition === 'before' && currentTargetData) {
+                     // Dropping before a target item
+                     // *** 修正：使用 parent_id ***
+                     targetParentId = currentTargetData.parent_id || 'root'; // Get parent from the target item
+                     actualNewParentId = (targetParentId === 'root') ? null : targetParentId;
+                     targetBeforeId = currentTargetData.id; // Insert before this target
+                     console.log(`Drop target: Before item ${targetBeforeId} in parent ${targetParentId}`);
+                 } else if (currentInsertPosition === 'after' && currentTargetData) {
+                     // Dropping after a target item
+                     // *** 修正：使用 parent_id ***
+                     targetParentId = currentTargetData.parent_id || 'root'; // Get parent from the target item
+                     actualNewParentId = (targetParentId === 'root') ? null : targetParentId;
+                     const nextSiblingElement = currentTargetElement.nextElementSibling;
+                     if (nextSiblingElement && nextSiblingElement.classList.contains('file-item')) {
+                          targetBeforeId = nextSiblingElement.dataset.id;
+                          console.log(`Drop target: After item ${currentTargetData.id}, before next sibling ${targetBeforeId}, in parent ${targetParentId}`);
+                     } else {
+                          targetBeforeId = null; // Dropping at the end of the list
+                          console.log(`Drop target: After item ${currentTargetData.id} (at the end) in parent ${targetParentId}`);
+                     }
+                 } else {
+                     // Potentially dropping onto empty space in the root?
+                     targetParentId = 'root';
+                     actualNewParentId = null;
+                     targetBeforeId = null; // Append to root
+                     console.log('Drop target: In root (likely empty space)');
+                 }
+
+                 // Prevent moving a folder into itself (frontend check)
+                 if (currentDraggedItemData?.type === 'folder' && String(draggedId) === String(targetParentId)) {
+                    console.warn("Attempted to move a folder into itself. Aborting.");
+                    alert("不能将文件夹移动到自身内部。");
+                    return;
+                 }
+
+                 console.log(`Initiating move for Item ${draggedId}: Target Parent API ID: ${actualNewParentId}, Target Before API ID: ${targetBeforeId}`);
+                 result = await moveItemAPI(draggedId, actualNewParentId, targetBeforeId);
+
+                 if (result) {
+                     console.log(`Move successful for item ${draggedId}. Refreshing lists.`);
+                     // Refreshing both original and new parent lists covers all cases
+                     const originalParentIdForRefresh = originalParentId === 'root' ? null : originalParentId;
+                     const targetParentIdForRefresh = targetParentId === 'root' ? null : targetParentId;
+
+                     await reloadItemsForParent(originalParentIdForRefresh);
+                     // Avoid double refresh if parent didn't change
+                     if (String(originalParentIdForRefresh) !== String(targetParentIdForRefresh)) { // Compare values carefully
+                          await reloadItemsForParent(targetParentIdForRefresh);
+                     }
+                 } else {
+                     console.error(`Move failed for item ${draggedId}.`);
+                     // API call should have alerted failure
+                 }
+            }
+        }
+
+        // 重新加载并渲染指定父级下的项目
+        async function reloadItemsForParent(parentId) {
+            const parentIdStr = parentId || 'root';
+            console.log(`Reloading items for parent: ${parentIdStr}`);
+            let targetUl;
+            if (parentIdStr === 'root') {
+                targetUl = fileList; // 根列表
+            } else {
+                 const parentLi = fileList.querySelector(`.file-item[data-id="${parentId}"]`);
+                 if (parentLi) {
+                     targetUl = parentLi.querySelector('ul');
+                 } else {
+                      console.error('Cannot find parent element to reload for id:', parentId);
+                      return;
+                 }
+            }
+
+            if (!targetUl) {
+                 console.error('Cannot find target UL element for parent id:', parentId);
+                 return;
+            }
+
+            const items = await fetchItems(parentIdStr);
+            if (items) {
+                 renderFileList(items, targetUl);
+            } else {
+                 targetUl.innerHTML = '<li><i>加载失败</i></li>';
+            }
+        }
+
+        // cleanupDragState 基本不变
+        function cleanupDragState() {
+             if (draggedItemData) {
+                const draggedElement = document.querySelector(`.file-item[data-id="${draggedItemData.id}"].dragging`);
+                if (draggedElement) {
+                    draggedElement.classList.remove('dragging');
+                }
+             }
+             draggedItemData = null;
+             currentDragTargetElement = null;
+             insertPosition = null;
+             clearDropClasses();
+        }
+        // 修改 clearDropClasses 以移除新类
+        function clearDropClasses(excludeElement = null) {
+             document.querySelectorAll('.file-item.drag-over-folder, .file-item.drag-over-insert-before, .file-item.drag-over-insert-after, .file-item.drag-over-associate').forEach(el => { // 添加 associate
+                 if (el !== excludeElement) {
+                    el.classList.remove('drag-over-folder', 'drag-over-insert-before', 'drag-over-insert-after', 'drag-over-associate'); // 添加移除 associate
+                 }
+             });
+             // ... (删除按钮逻辑不变) ...
+        }
+
+        // dragend 不变
+        document.addEventListener('dragend', (event) => {
+             console.log("Drag End");
+             cleanupDragState();
+        });
+
+
+        // --- 初始化和全局事件 (修改部分) ---
+        async function loadInitialItems() {
+            console.log("Loading initial items...");
+            const rootItems = await fetchItems('root');
+            if (rootItems) {
+                renderFileList(rootItems, fileList);
+            } else {
+                 fileList.innerHTML = '<li>加载根目录失败</li>';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadInitialItems();
+            populateTemplateSelector(); // <-- 添加调用
+            populateAiServiceSelector(); // <-- 添加调用
+
+            // --- Auto-Save Toggle Listener ---
+            if (autoSaveToggle) {
+
+                // 1. 从 HTML data-* 属性初始化 JS 状态
+                let initialAutoSaveSetting = null;
+                try {
+                    // 读取 data-initial-state 属性并解析
+                    const initialStateString = autoSaveToggle.dataset.initialState;
+                    if (initialStateString === 'true') {
+                        initialAutoSaveSetting = true;
+                    } else if (initialStateString === 'false') {
+                        initialAutoSaveSetting = false;
+                    }
+                } catch (e) {
+                    console.error("Error reading initial auto-save setting from data attribute:", e);
+                }
+
+                if (typeof initialAutoSaveSetting === 'boolean') {
+                    isAutoSaveOnNavigateEnabled = initialAutoSaveSetting;
+                    // 同步 HTML 状态以防万一 (理论上应该匹配)
+                    autoSaveToggle.checked = isAutoSaveOnNavigateEnabled;
+                    console.log('Initial Auto-save on navigate away (from data attribute):', isAutoSaveOnNavigateEnabled ? 'Enabled' : 'Disabled');
+                } else {
+                    // 如果后端没有传递值或值无效，则回退到 DOM 状态 (默认为 checked)
+                    isAutoSaveOnNavigateEnabled = autoSaveToggle.checked;
+                    console.warn('Initial auto-save setting not received from backend or invalid, using default.')
+                    console.log('Initial Auto-save on navigate away (default):', isAutoSaveOnNavigateEnabled ? 'Enabled' : 'Disabled');
+                }
+
+                // 2. 移除 localStorage 相关逻辑 (如果之前有添加)
+                // const savedState = localStorage.getItem('autoSaveOnNavigate'); ... (删除或注释掉)
+
+                // 3. 修改 change 事件监听器以调用 API
+                autoSaveToggle.addEventListener('change', async () => { // 添加 async
+                    isAutoSaveOnNavigateEnabled = autoSaveToggle.checked;
+                    console.log('Auto-save on navigate away toggled:', isAutoSaveOnNavigateEnabled ? 'Enabled' : 'Disabled');
+
+                    // 调用 API 更新后端设置
+                    const result = await updateUserSettingAPI('auto_save_on_navigate', isAutoSaveOnNavigateEnabled);
+                    if (result && result.success) {
+                         console.log('User setting updated successfully.'); // 更新日志
+                    } else {
+                         console.error('Failed to update user setting.');
+                         // 可选：如果API调用失败，将开关恢复到之前的状态
+                         autoSaveToggle.checked = !isAutoSaveOnNavigateEnabled;
+                         isAutoSaveOnNavigateEnabled = !isAutoSaveOnNavigateEnabled;
+                         alert('无法保存设置，请稍后重试。');
+                    }
+                });
+
+                // (下面是之前的 TODO，现在初始化逻辑已移到上面)
+
+            } else {
+                 console.warn("Auto-save toggle switch not found!");
+            }
+
+
+            // --- Remove Prompt Bar Resizing Logic ---
+            // ... (其他代码)
+
+            // --- Other Button Listeners --- 
+            const generateBtn = document.getElementById('generate-btn');
+            const retryBtn = document.getElementById('retry-btn');
+            const saveBtn = document.getElementById('save-btn');
+            const novelContentEditor = document.getElementById('novel-content');
+
+            // 添加保存按钮事件监听
+            if (saveBtn) {
+                saveBtn.addEventListener('click', async () => {
+                    // 手动保存前，清除自动保存计时器 (虽然现在没有输入计时器了，但这行无害)
+                    if (autoSaveTimer) {
+                        clearTimeout(autoSaveTimer);
+                        autoSaveTimer = null;
+                        console.log('[Manual Save] Cleared pending auto-save timer.');
+                    }
+                    // 直接调用保存逻辑
+                    await saveCurrentBookContent();
+                });
+            } else {
+                 console.error("Save button not found!");
+            }
+
+            // TODO: 添加 Generate 和 Retry 按钮的事件监听器
+            /*
+            if (generateBtn) {
+                 generateBtn.addEventListener('click', () => {
+                     alert('"生成"功能待实现');
+                 });
+            }
+            if (retryBtn) {
+                 retryBtn.addEventListener('click', () => {
+                     alert('"重试"功能待实现');
+                 });
+            }
+            */
+
+            // --- 编辑器内容变化监听 ---
+            novelContent.addEventListener('input', () => {
+                // When user types manually, disable the undo functionality
+                if (lastGeneratedRange) {
+                    console.log('User edited content, disabling undo.');
+                    lastGeneratedRange = null;
+                    undoGenBtn.style.display = 'none'; 
+                }
+                
+                if (currentEditingBookTitle && novelContent.dataset.currentItemType === 'book') {
+                    const currentContent = novelContent.value;
+                    // console.log('[Input Listener] Editor content changed. Length:', currentContent.length, 'Calling updateRightSidebarTitle...');
+                    // 调用更新函数，它内部会使用新的字符计数
+                    updateRightSidebarTitle(currentEditingBookTitle, currentContent);
+
+                    // --- 移除输入时的自动保存逻辑 ---
+                    /*
+                    // 清除之前的计时器
+                    if (autoSaveTimer) {
+                        clearTimeout(autoSaveTimer);
+                    }
+                    // 设置新的计时器
+                    autoSaveTimer = setTimeout(async () => {
+                        await saveCurrentBookContent();
+                        autoSaveTimer = null; // 保存完成后清除计时器引用
+                    }, AUTO_SAVE_DELAY);
+                    */
+                    // --- 结束移除自动保存逻辑 ---
+                }
+            });
+
+            // --- 生成按钮事件监听 --- 
+             if (generateBtn) {
+                 generateBtn.addEventListener('click', triggerGeneration); // Call the generation function on click
+                 /* --- Original click listener code moved to triggerGeneration() --- */
+                 /* generateBtn.addEventListener('click', async () => { ... }); */
+             } else {
+                 console.error("Generate button not found!");
+             }
+             
+            // --- Add Undo Button Listener ---
+            if (undoGenBtn) {
+                 undoGenBtn.addEventListener('click', () => {
+                     if (lastGeneratedRange) {
+                         console.log('Undo clicked, removing range:', lastGeneratedRange);
+                         const currentValue = novelContent.value;
+                         const range = lastGeneratedRange;
+                         
+                         // Remove the text
+                         novelContent.value = currentValue.slice(0, range.start) + currentValue.slice(range.end);
+                         
+                         // Move cursor back to the start of the removed range
+                         novelContent.focus();
+                         novelContent.setSelectionRange(range.start, range.start);
+                         
+                         // Reset state
+                         lastGeneratedRange = null;
+                         undoGenBtn.style.display = 'none';
+                         
+                         // Trigger input event to update counts etc.
+                         novelContent.dispatchEvent(new Event('input', { bubbles: true }));
+                         
+                         // Optional: Trigger auto-save after undo
+                         // if (debounceSaveSettings) debounceSaveSettings(); 
+                     } else {
+                         console.warn('Undo clicked but no valid range stored.');
+                         undoGenBtn.style.display = 'none'; // Hide if somehow visible without range
+                     }
+                 });
+            } else {
+                console.error('Undo Generate button not found!');
+            }
+
+            // --- Modify Save Logic --- 
+            async function saveCurrentBookContent() {
+                const currentId = novelContent.dataset.currentItemId;
+                const currentType = novelContent.dataset.currentItemType;
+                const saveBtn = document.getElementById('save-btn'); 
+                
+                // --- Disable undo when saving --- 
+                if (lastGeneratedRange) {
+                    console.log('Saving content, disabling undo.');
+                    lastGeneratedRange = null;
+                    undoGenBtn.style.display = 'none'; 
+                }
+                // --- End disable undo --- 
+                
+                let wasTriggeredByInput = false; 
+
+                if (saveBtn && saveBtn.classList.contains('save-success')) {
+                    // 如果按钮已经是成功状态，可能快速连续触发，先移除旧状态
+                    saveBtn.classList.remove('save-success');
+                }
+
+                if (currentId && currentType === 'book') {
+                    console.log(`[Save Trigger] Saving content for book ${currentId}...`);
+                    // 可选：添加一个不那么干扰的保存状态指示，例如在标题旁边
+                    // wordCountBadgeSpan.textContent = '保存中...';
+
+                    if (saveBtn) { // 临时禁用手动保存按钮防止冲突
+                        saveBtn.disabled = true;
+                        saveBtn.textContent = '保存中...';
+                    }
+
+                    const result = await updateContentAPI(currentId, currentType, novelContent.value);
+
+                    if (saveBtn) { // 恢复按钮
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = '保存'; // 恢复原始文本
+                    }
+
+                    if (result) {
+                        console.log('[Save Success] Content saved successfully.');
+                        // 可选：短暂显示保存成功状态 (变绿)
+                        if (saveBtn) {
+                            saveBtn.classList.add('save-success');
+                            setTimeout(() => {
+                               saveBtn.classList.remove('save-success');
+                            }, 1500); // 1.5秒后移除绿色状态
+                        }
+                        // 确保字数统计在保存后更新（如果内容在此期间变化）
+                        updateRightSidebarTitle(currentEditingBookTitle, novelContent.value);
+                    } else {
+                         console.error('[Save Failed] Failed to save content.');
+                         if (saveBtn) {
+                            // 可视化失败，例如短暂变红？或只留 log
+                            saveBtn.textContent = '保存失败!';
+                             setTimeout(() => {
+                                  if (!saveBtn.disabled) saveBtn.textContent = '保存'; // 恢复文本
+                             }, 2000);
+                         }
+                         // 可以添加更强的错误提示
+                         // alert('自动保存失败，请检查网络或稍后手动保存。');
+                    }
+                } else {
+                    console.log('[Save Skipped] No book selected or not editing a book.');
+                }
+            }
+
+            // --- 生成按钮事件监听 --- 
+             if (generateBtn) {
+                 generateBtn.addEventListener('click', triggerGeneration); // Call the generation function on click
+                 /* --- Original click listener code moved to triggerGeneration() --- */
+                 /* generateBtn.addEventListener('click', async () => { ... }); */
+             } else {
+                 console.error("Generate button not found!");
+             }
+             
+            // --- Add Undo Button Listener ---
+            if (undoGenBtn) {
+                 undoGenBtn.addEventListener('click', () => {
+                     if (lastGeneratedRange) {
+                         console.log('Undo clicked, removing range:', lastGeneratedRange);
+                         const currentValue = novelContent.value;
+                         const range = lastGeneratedRange;
+                         
+                         // Remove the text
+                         novelContent.value = currentValue.slice(0, range.start) + currentValue.slice(range.end);
+                         
+                         // Move cursor back to the start of the removed range
+                         novelContent.focus();
+                         novelContent.setSelectionRange(range.start, range.start);
+                         
+                         // Reset state
+                         lastGeneratedRange = null;
+                         undoGenBtn.style.display = 'none';
+                         
+                         // Trigger input event to update counts etc.
+                         novelContent.dispatchEvent(new Event('input', { bubbles: true }));
+                         
+                         // Optional: Trigger auto-save after undo
+                         // if (debounceSaveSettings) debounceSaveSettings(); 
+                     } else {
+                         console.warn('Undo clicked but no valid range stored.');
+                         undoGenBtn.style.display = 'none'; // Hide if somehow visible without range
+                     }
+                 });
+            } else {
+                console.error('Undo Generate button not found!');
+            }
+
+        });
+
+        // 点击页面其他地方隐藏菜单 (不变)
+        document.addEventListener('click', () => {
+            hideContextMenu();
+            hideCreateMenu();
+        });
+
+        // 右键菜单点击事件 (调用修改后的函数)
+        contextMenu.addEventListener('click', (event) => {
+            if (contextTarget && event.target.dataset.action) {
+                const action = event.target.dataset.action;
+                if (action === 'rename') {
+                    startRename(contextTarget);
+                } else if (action === 'delete') {
+                    // contextTarget.item 包含 API 返回的数据
+                        deleteItem(contextTarget.item);
+                }
+            }
+            hideContextMenu();
+        });
+
+        // 创建按钮点击 (不变)
+        createBtn.addEventListener('click', showCreateMenu);
+
+        // 创建菜单点击 (调用修改后的函数)
+        createMenu.addEventListener('click', (event) => {
+             if (event.target.dataset.type) {
+                 createNewItem(event.target.dataset.type);
+             }
+             hideCreateMenu();
+        });
+
+        // 删除按钮的拖放监听器 (handleDrop 已修改为调用 API)
+        deleteBtn.addEventListener('dragenter', (event) => {
+             event.preventDefault();
+             currentDragTargetElement = deleteBtn;
+         });
+        deleteBtn.addEventListener('dragover', (event) => {
+             event.preventDefault();
+             event.dataTransfer.dropEffect = 'move';
+             clearDropClasses(deleteBtn);
+             deleteBtn.classList.add('drag-over-delete');
+             insertPosition = 'delete';
+             currentDragTargetElement = deleteBtn;
+         });
+        deleteBtn.addEventListener('dragleave', (event) => {
+             deleteBtn.classList.remove('drag-over-delete');
+             const relatedTarget = event.relatedTarget;
+             if (!relatedTarget || !relatedTarget.closest('.file-item')) {
+                  insertPosition = null;
+                  currentDragTargetElement = null;
+             }
+         });
+        deleteBtn.addEventListener('drop', (event) => {
+            // handleDrop 现在会处理 delete position
+            handleDrop(event, null, deleteBtn);
+        });
+
+        // Re-add the clearSettingDisplay function
+        function clearSettingDisplay() {
+             settingContent.innerHTML = `<p>点击左侧设定书查看详情</p>`;
+             // Also clear any stored IDs related to the setting view
+             delete settingContent.dataset.currentItemId;
+             delete settingContent.dataset.currentItemType;
+             delete settingContent.dataset.settingBookId; // Clear setting book ID if stored here
+             // *** 修改点：重置标题和全局变量 ***
+             currentEditingBookTitle = null;
+             isWordCountLimitAlertShown = false; // Reset flag
+             updateRightSidebarTitle('设定详情'); // Reset title
+        }
+
+        // --- 新增：更新右侧边栏标题的辅助函数 ---
+        function updateRightSidebarTitle(title, content = null) {
+            const maxChars = 25000; // 最大值仍然是 25000
+
+            if (bookTitleTextSpan && wordCountBadgeSpan) {
+                bookTitleTextSpan.textContent = title; // Set title text
+
+                if (content !== null && title !== '设定详情') {
+                     // 使用新的字符计数函数
+                     const charCount = countCharacters(content);
+                     // console.log('[updateRightSidebarTitle] Updating badge for:', title, 'Content Length:', content.length, 'Calculated Char Count:', charCount); // 更新日志标签
+                     wordCountBadgeSpan.textContent = `(${charCount} / ${maxChars} 字)`; // 显示字符数
+                     wordCountBadgeSpan.style.display = 'inline-block'; // Show badge
+
+                    // 检查是否超限
+                    const isOverLimit = charCount > maxChars;
+
+                    if (isOverLimit) {
+                        wordCountBadgeSpan.classList.add('limit-exceeded');
+                        if (!isWordCountLimitAlertShown) {
+                            alert(`字数（字符数）已超过 ${maxChars} 字上限！当前 ${charCount} 字。`); // 更新提醒信息
+                            isWordCountLimitAlertShown = true;
+                        }
+                    } else {
+                        wordCountBadgeSpan.classList.remove('limit-exceeded');
+                        isWordCountLimitAlertShown = false;
+                    }
+
+                } else {
+                    // console.log('[updateRightSidebarTitle] Hiding badge for:', title);
+                    wordCountBadgeSpan.style.display = 'none';
+                    wordCountBadgeSpan.classList.remove('limit-exceeded');
+                    isWordCountLimitAlertShown = false;
+                }
+            } else {
+                 console.error("Could not find title or badge span elements.");
+                 rightSidebarTitle.textContent = title;
+            }
+        }
+
+        // --- 占位：更新用户设置 API ---
+        async function updateUserSettingAPI(settingKey, settingValue) {
+            console.log(`Updating user setting via API: ${settingKey} = ${settingValue}`);
+            return await fetchAPI('/api/user/settings', { // 实际的端点
+                method: 'PUT',
+                body: { [settingKey]: settingValue }
+            });
+        }
+
+        // --- 新增：获取未关联书籍 API ---
+        async function getUnassociatedBooksAPI() {
+            return await fetchAPI('/api/books/unassociated');
+        }
+
+
+        // --- 字符统计函数 (原 countWords) ---
+        // ... existing code ...
+
+        // --- 事件处理函数 (需要大幅修改) ---
+
+        // --- 新增：打开书籍并加载内容的函数 ---
+        async function openBook(bookData) {
+            console.log(`[Open Book] Opening book: ${bookData.name} (ID: ${bookData.id})`);
+
+            // 1. 切换中央区域显示
+            showEditorArea(); // 确保编辑区可见
+
+            // 2. 清理右侧设定区 (除非稍后加载关联设定)
+            clearSettingDisplay(); // 清除旧设定
+
+            // 3. 获取书籍内容 (包含关联设定信息)
+            novelContent.value = '加载中...'; // 显示加载提示
+            novelContent.dataset.currentItemId = bookData.id;
+            novelContent.dataset.currentItemType = 'book';
+            currentEditingBookTitle = bookData.name; // 先设置标题
+            isWordCountLimitAlertShown = false; // 重置提醒标记
+            updateRightSidebarTitle(currentEditingBookTitle); // 显示标题，无字数
+
+            const contentData = await getContentAPI(bookData.id);
+            console.log("[Open Book] Received content data:", contentData);
+
+            if (contentData) {
+                // 更新编辑器内容
+                novelContent.value = contentData.content || '';
+                // 更新侧边栏标题和字数
+                updateRightSidebarTitle(currentEditingBookTitle, contentData.content || '');
+
+                // 检查并显示关联的设定书
+                if (contentData.associatedSetting) {
+                    console.log('[Open Book] Book has associated setting, displaying...', contentData.associatedSetting);
+                    // 注意：displaySettingDetails 需要完整的 setting item 数据，
+                    // 而 contentData.associatedSetting 现在只包含 id, name, type
+                    // 我们需要再次获取完整的 setting details
+                    const fullSettingData = await getContentAPI(contentData.associatedSetting.id);
+                    if (fullSettingData) {
+                        displaySettingDetails(fullSettingData);
+                        settingContent.dataset.currentItemId = fullSettingData.id;
+                        settingContent.dataset.currentItemType = 'setting';
+                    } else {
+                         console.error('[Open Book] Failed to fetch full details for associated setting.');
+                         clearSettingDisplay(); // 获取失败则清空
+                    }
+                } else {
+                    console.log('[Open Book] Book does not have an associated setting.');
+                    clearSettingDisplay(); // 确认清空
+                }
+            } else {
+                console.error('[Open Book] Failed to fetch content data.');
+                novelContent.value = '加载内容失败。';
+                delete novelContent.dataset.currentItemId;
+                delete novelContent.dataset.currentItemType;
+                updateRightSidebarTitle(bookData.name); // 保留标题，无字数
+                currentEditingBookTitle = null;
+                isWordCountLimitAlertShown = false;
+                clearSettingDisplay();
+            }
+            console.log("[Open Book] Finished opening book.");
+        }
+
+        // --- 新增：渲染未关联书籍列表 --- 
+        function renderUnassociatedBookList(books, settingBookId, containerElement) {
+            containerElement.innerHTML = ''; // 清空旧内容
+            
+            const title = document.createElement('h4');
+            const settingItem = fileList.querySelector(`.file-item[data-id="${settingBookId}"]`);
+            const settingName = settingItem ? settingItem.querySelector('.item-name').textContent : '此设定书';
+            title.textContent = `将《${settingName}》关联到哪本书籍？`;
+            containerElement.appendChild(title);
+            
+            if (!books || books.length === 0) {
+                containerElement.innerHTML += '<p style="color: #6c757d;">没有找到未关联任何设定书的书籍。</p>';
+                return;
+            }
+
+            const ul = document.createElement('ul');
+            ul.classList.add('unassociated-book-list');
+            ul.dataset.settingBookId = settingBookId; // 将设定书 ID 存起来
+
+            books.forEach(book => {
+                const li = document.createElement('li');
+                li.classList.add('unassociated-book-item');
+                li.dataset.bookId = book.id; // 存储书籍 ID
+                li.innerHTML = `
+                    <i class="fas fa-book"></i>
+                    <span>${book.name}</span>
+                `;
+                li.addEventListener('click', (event) => handleAssociateAndOpenBook(event, settingBookId));
+                ul.appendChild(li);
+            });
+            containerElement.appendChild(ul);
+        }
+
+        // --- 新增：处理关联并打开书籍的点击事件 ---
+        async function handleAssociateAndOpenBook(event, settingBookId) {
+            const clickedLi = event.currentTarget;
+            const bookId = clickedLi.dataset.bookId;
+            const bookName = clickedLi.querySelector('span').textContent;
+
+            console.log(`[Associate Click] Associating Setting ${settingBookId} with Book ${bookId} (${bookName})...`);
+
+            // 禁用列表点击，防止重复操作
+            clickedLi.closest('.unassociated-book-list').style.pointerEvents = 'none';
+            clickedLi.style.backgroundColor = '#d1e7dd'; // 显示选中状态
+            clickedLi.innerHTML += ' <i>关联中...</i>';
+
+            const result = await associateSettingAPI(bookId, settingBookId);
+
+            if (result && result.id == bookId) { // API 成功后返回更新后的 book 信息
+                console.log('[Associate Click] Association successful.');
+                // 关联成功后，直接调用 openBook 打开这本书
+                // 需要构造 bookData 对象
+                const bookData = { id: bookId, name: bookName, type: 'book' }; 
+                await openBook(bookData);
+            } else {
+                 console.error('[Associate Click] Association failed.');
+                 alert('关联失败，请重试。');
+                 // 恢复列表
+                 clickedLi.closest('.unassociated-book-list').style.pointerEvents = 'auto';
+                 clickedLi.style.backgroundColor = '';
+                 clickedLi.querySelector('i:last-child').remove();
+            }
+        }
+
+        // --- 新增：控制中央区域显示的辅助函数 ---
+        function showEditorArea() {
+            centralDisplayArea.style.display = 'none';
+            novelContent.style.display = 'block';
+            promptBar.style.display = 'flex'; // prompt-bar 用的是 flex
+            console.log('[Display Control] Showing Editor Area');
+        }
+
+        function showCentralDisplay() {
+             centralDisplayArea.innerHTML = '<div><i>加载中...</i></div>'; // 清空并显示加载状态
+             centralDisplayArea.style.display = 'block';
+             novelContent.style.display = 'none';
+             promptBar.style.display = 'none';
+             console.log('[Display Control] Showing Central Display Area');
+        }
+
+
+        async function handleItemClick(event, itemData, itemElement) {
+            event.stopPropagation();
+            console.log('Clicked:', itemData.name, 'Type:', itemData.type);
+
+            // --- 离开时自动保存逻辑 (保持不变) ---
+            const previouslyEditingItemId = novelContent.dataset.currentItemId;
+            const previouslyEditingItemType = novelContent.dataset.currentItemType;
+
+            if (isAutoSaveOnNavigateEnabled &&
+                previouslyEditingItemId && previouslyEditingItemType === 'book' &&
+                previouslyEditingItemId !== String(itemData.id) // 确保不是点击当前正在编辑的书 (id可能是数字或字符串)
+               ) {
+                 console.log(`[AutoSave Navigate] Triggering save for book ${previouslyEditingItemId} before switching to ${itemData.name}`);
+                 if (autoSaveTimer) {
+                     clearTimeout(autoSaveTimer);
+                     autoSaveTimer = null;
+                     console.log('[AutoSave Navigate] Cleared pending input auto-save timer.');
+                 }
+                 await saveCurrentBookContent();
+                 console.log(`[AutoSave Navigate] Save completed for ${previouslyEditingItemId}.`);
+            }
+            // --- 结束：离开时自动保存逻辑 ---
+
+            // --- 清理和重置通用状态 ---
+            currentEditingBookTitle = null;
+            isWordCountLimitAlertShown = false; // 重置提醒标记
+            // ** 在处理点击前，先确定是否需要显示编辑器 **
+            // 默认显示编辑器，除非是未关联的设定书
+            // showEditorArea(); // 移动到具体分支处理
+
+            // --- 根据类型处理 --- 
+            if (itemData.type === 'folder') {
+                // --- 处理文件夹点击 (展开/折叠/加载子项) --- 
+                showEditorArea(); // 点击文件夹时显示编辑器区域（但内容为空）
+                novelContent.value = ''; // 清空编辑器
+                delete novelContent.dataset.currentItemId;
+                delete novelContent.dataset.currentItemType;
+                clearSettingDisplay(); // 清空右侧设定区
+                updateRightSidebarTitle('设定详情'); // 重置右侧标题
+
+                const folderId = itemData.id;
+                const isCollapsed = itemElement.classList.toggle('collapsed');
+                const childrenUl = itemElement.querySelector('ul');
+
+                await toggleFolderAPI(folderId, isCollapsed); // 更新后端折叠状态
+
+                if (!isCollapsed && childrenUl && childrenUl.children.length === 0) {
+                    console.log(`Fetching children for folder ${folderId}...`);
+                    childrenUl.innerHTML = '<li><i>加载中...</i></li>';
+                    const childrenData = await fetchItems(folderId);
+                    if (childrenData) {
+                        renderFileList(childrenData, childrenUl);
+                    } else {
+                        childrenUl.innerHTML = '<li><i>加载失败</i></li>';
+                    }
+                }
+                if (childrenUl) {
+                    childrenUl.style.display = isCollapsed ? 'none' : 'block';
+                }
+
+            } else if (itemData.type === 'book') {
+                // --- 处理书籍点击 (调用新函数打开) --- 
+                await openBook(itemData); // 直接使用 itemData
+
+            } else if (itemData.type === 'setting') {
+                // --- 处理设定书点击 --- 
+                console.log(`[Setting Click] Handling click for setting: ${itemData.name}`);
+                novelContent.value = ''; // 清空编辑器
+                delete novelContent.dataset.currentItemId;
+                delete novelContent.dataset.currentItemType;
+                clearSettingDisplay(); // 清空右侧设定区
+                updateRightSidebarTitle('设定详情'); // 重置右侧标题
+
+                // 获取设定书内容，检查是否有 'associatedBookInfo'
+                const settingDetails = await getContentAPI(itemData.id);
+
+                if (settingDetails && settingDetails.associatedBookInfo) {
+                    // --- 情况1：设定书已关联 --- 
+                    console.log(`[Setting Click] Setting ${itemData.name} is associated with Book ID: ${settingDetails.associatedBookInfo.id}`);
+                    // 直接打开关联的书籍
+                    await openBook(settingDetails.associatedBookInfo); // 使用关联的书籍信息
+                } else if (settingDetails) {
+                    // --- 情况2：设定书未关联 --- 
+                    console.log(`[Setting Click] Setting ${itemData.name} is not associated. Fetching unassociated books...`);
+                    showCentralDisplay(); // 显示中央列表区域
+                    const unassociatedBooks = await getUnassociatedBooksAPI();
+                    if (unassociatedBooks) {
+                        renderUnassociatedBookList(unassociatedBooks, itemData.id, centralDisplayArea);
+                    } else {
+                        centralDisplayArea.innerHTML = '<h4>关联书籍</h4><p>加载未关联书籍列表失败。</p>';
+                    }
+                    // 同时，在右侧显示设定书本身的编辑界面 (如果需要的话)
+                    // displaySettingDetails(settingDetails);
+                    // settingContent.dataset.currentItemId = itemData.id;
+                    // settingContent.dataset.currentItemType = 'setting';
+                    // 考虑到主要流程是关联，暂时不在右侧显示设定编辑界面
+                    clearSettingDisplay(); // 保持右侧清空或显示提示
+                    updateRightSidebarTitle(`关联《${itemData.name}》`); // 更新右侧标题提示
+
+                } else {
+                    // 获取设定详情失败
+                    console.error(`[Setting Click] Failed to get details for setting ${itemData.name}.`);
+                    showEditorArea(); // 显示回编辑器（空的）
+                    alert('加载设定书信息失败。');
+                }
+            }
+        }
+
+        // function toggleFolder(folderItem) { ... } // 被 handleItemClick 替代
+
+        // --- 新增：获取并填充模板下拉框 ---
+        async function populateTemplateSelector() {
+            try {
+                const response = await fetch('/api/prompt-templates');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const templates = await response.json();
+
+                templateSelect.innerHTML = '<option value="">-- 选择模板 --</option>'; // 清空并添加默认选项
+                templates.forEach(template => {
+                    const option = document.createElement('option');
+                    option.value = template.id;
+                    option.textContent = template.name;
+                     // 可选：如果模板是默认模板，默认选中它
+                    if (template.is_default) {
+                         option.selected = true;
+                    }
+                    templateSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('获取模板列表失败:', error);
+                templateSelect.innerHTML = '<option value="">加载模板失败</option>';
+            }
+        }
+
+        // --- 新增：获取并填充 AI 服务下拉框 --- 
+        async function populateAiServiceSelector() {
+             try {
+                 const response = await fetch('/api/ai-services/available');
+                 if (!response.ok) {
+                     throw new Error(`HTTP error! status: ${response.status}`);
+                 }
+                 const services = await response.json();
+
+                 aiServiceSelect.innerHTML = '<option value="">-- 使用默认 --</option>'; // Default option
+                 services.forEach(service => {
+                     const option = document.createElement('option');
+                     option.value = service.id;
+                     option.textContent = service.name; // Name already includes type (系统/我的)
+                     aiServiceSelect.appendChild(option);
+                 });
+             } catch (error) {
+                 console.error('获取可用 AI 服务列表失败:', error);
+                 aiServiceSelect.innerHTML = '<option value="">加载服务失败</option>';
+             }
+         }
+
+        // --- Debounce Utility --- 
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // --- Settings Auto-Save Logic ---
+        const settingContentElement = document.getElementById('setting-content');
+        let debounceSaveSettings = null; // Will hold the debounced function
+
+        async function autoSaveSettings() {
+            const settingList = settingContentElement.querySelector('.setting-list');
+            const settingBookId = settingList ? settingList.dataset.settingBookId : null;
+            const saveButton = document.getElementById('save-settings-btn'); // Get the save button
+
+            if (settingList && settingBookId) {
+                 console.log(`[AutoSave Settings] Triggered for setting book ${settingBookId}.`);
+                 const updatedSettings = [];
+                 const settingItems = settingList.querySelectorAll('.setting-item');
+                 settingItems.forEach(item => {
+                     const textarea = item.querySelector('.setting-text-input');
+                     const checkbox = item.querySelector('.setting-enabled-toggle');
+                     if (textarea && checkbox) {
+                         updatedSettings.push({
+                             text: textarea.value,
+                             enabled: checkbox.checked
+                         });
+                     }
+                 });
+                 
+                 // Provide subtle feedback (optional)
+                 if(saveButton && !saveButton.disabled) {
+                     saveButton.textContent = '自动保存中...';
+                 }
+
+                 const result = await updateContentAPI(settingBookId, 'setting', updatedSettings);
+                 
+                 if(saveButton && !saveButton.disabled) {
+                    if (result) {
+                         console.log('[AutoSave Settings] Success.');
+                         saveButton.textContent = '已自动保存 ✓';
+                         setTimeout(() => { 
+                              if (!saveButton.disabled) saveButton.textContent = '保存设定'; 
+                         }, 1500); // Show checkmark briefly
+                     } else {
+                         console.error('[AutoSave Settings] Failed.');
+                         saveButton.textContent = '自动保存失败!';
+                         setTimeout(() => { 
+                              if (!saveButton.disabled) saveButton.textContent = '保存设定'; 
+                         }, 2000); // Show error briefly
+                     }
+                 }
+            } else {
+                 console.log('[AutoSave Settings] Skipped: No active setting book ID found.');
+            }
+        }
+        
+        // Create the debounced version (e.g., save 2 seconds after last change/blur)
+        debounceSaveSettings = debounce(autoSaveSettings, 2000);
+
+        // Add event listener for changes/blur within the settings panel
+        if (settingContentElement) {
+             settingContentElement.addEventListener('input', (event) => {
+                 // Trigger on text changes in textareas
+                 if (event.target.classList.contains('setting-text-input')) {
+                     if(debounceSaveSettings) debounceSaveSettings();
+                 }
+             });
+             settingContentElement.addEventListener('change', (event) => {
+                 // Trigger on checkbox changes
+                 if (event.target.classList.contains('setting-enabled-toggle')) {
+                     if(debounceSaveSettings) debounceSaveSettings();
+                 }
+             });
+             // Optional: Trigger on blur as well, though input/change might be sufficient
+             settingContentElement.addEventListener('blur', (event) => {
+                  if (event.target.classList.contains('setting-text-input') || event.target.classList.contains('setting-enabled-toggle')) {
+                      if(debounceSaveSettings) debounceSaveSettings();
+                  }
+             }, true); // Use capture phase for blur if needed
+             
+             // --- Add Listener for Setting Textarea Enter Key ---
+             settingContentElement.addEventListener('keydown', (event) => {
+                 if (event.target.classList.contains('setting-text-input')) {
+                     if (event.key === 'Enter' && !event.shiftKey) {
+                         event.preventDefault(); // Prevent newline
+                         console.log('Enter pressed in setting textarea, saving and moving focus...');
+                         
+                         // 1. Trigger immediate save
+                         autoSaveSettings(); // Call the existing save function directly
+
+                         // 2. Find next setting item and focus its textarea
+                         const currentLi = event.target.closest('.setting-item');
+                         if (currentLi) {
+                             let nextLi = currentLi.nextElementSibling;
+                             // Skip non-item elements if any (e.g., text nodes)
+                             while (nextLi && !nextLi.classList.contains('setting-item')) {
+                                 nextLi = nextLi.nextElementSibling;
+                             }
+
+                             if (nextLi) {
+                                 const nextTextarea = nextLi.querySelector('.setting-text-input');
+                                 if (nextTextarea) {
+                                     nextTextarea.focus();
+                                     // Move cursor to the end
+                                     const len = nextTextarea.value.length;
+                                     nextTextarea.setSelectionRange(len, len);
+                                 }
+                             }
+                         }
+                     }
+                     // Shift + Enter will insert newline by default
+                 }
+             });
+        }
+        
+        // Modify Manual Save Button listener
+        settingContent.addEventListener('click', async (event) => {
+            const target = event.target;
+            // ... (existing add/delete button logic) ...
+
+            // Handle Save Settings Button
+            if (target.id === 'save-settings-btn') {
+                 // Clear any pending debounced save immediately
+                 if (debounceSaveSettings && typeof clearTimeout === 'function') {
+                     // Need access to the timeout variable inside debounce, which is tricky.
+                     // Simplest alternative: just call the save function directly.
+                     // Or, restructure debounce to allow cancelling.
+                     // Let's just save immediately.
+                     console.log('[Manual Save] Clearing pending auto-save and saving now.');
+                 } 
+
+                const settingList = settingContent.querySelector('.setting-list');
+                const settingBookId = settingList ? settingList.dataset.settingBookId : null;
+                const saveButton = document.getElementById('save-settings-btn'); // Get the save button
+
+                if (settingList && settingBookId) {
+                    const updatedSettings = [];
+                    const settingItems = settingList.querySelectorAll('.setting-item');
+                    settingItems.forEach(item => {
+                        const textarea = item.querySelector('.setting-text-input');
+                        const checkbox = item.querySelector('.setting-enabled-toggle');
+                        if (textarea && checkbox) {
+                            updatedSettings.push({
+                                text: textarea.value,
+                                enabled: checkbox.checked
+                            });
+                        }
+                    });
+
+                    console.log(`Saving settings for book ${settingBookId}:`, updatedSettings);
+                    target.textContent = '保存中...';
+                    target.disabled = true;
+
+                    const result = await updateContentAPI(settingBookId, 'setting', updatedSettings);
+                    
+                    target.textContent = '保存设定';
+                    target.disabled = false;
+
+                    if (result) {
+                         console.log('Settings saved successfully.');
+                         target.textContent = '已保存 ✓';
+                         setTimeout(() => { target.textContent = '保存设定'; }, 2000);
+                     } else {
+                         console.error('Failed to save settings.');
+                         // Error already alerted by fetchAPI
+                     }
+                } else {
+                     console.error('Could not find setting list or book ID for saving.');
+                     alert('无法保存设定，缺少必要信息。');
+                }
+            }
+        });
+
+    </script>
+</body>
+</html> 

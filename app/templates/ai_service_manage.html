@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>AI服务与模板管理 - 小说编辑器</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .management-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fdfdfd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .management-section h2, .management-section h3, .management_section h4 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .ai-config-form div, #prompt-template-form div {
+            margin-bottom: 15px;
+        }
+        .ai-config-form label, #prompt-template-form label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        .ai-config-form input[type="text"],
+        .ai-config-form input[type="password"],
+        .ai-config-form select,
+        #prompt-template-form input[type="text"],
+        #prompt-template-form textarea {
+            width: calc(100% - 20px); /* Adjust width considering padding */
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        .ai-config-form select {
+             width: 100%; /* Select width needs to be 100% */
+        }
+        .ai-config-form small, #prompt-template-form small {
+             display: block;
+             margin-top: 5px;
+             color: #666;
+             font-size: 0.9em;
+        }
+        button, .button-link {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.95em;
+            margin-right: 5px;
+            text-decoration: none; /* For button-link */
+            display: inline-block; /* For button-link */
+            vertical-align: middle;
+        }
+        button[type="submit"] {
+            background-color: #007bff;
+            color: white;
+        }
+        button[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+        .delete-link, .make-system-link, .edit-btn, .delete-btn {
+            padding: 5px 10px;
+            font-size: 0.9em;
+            margin-right: 5px;
+            text-decoration: none;
+            display: inline-block;
+            border-radius: 3px;
+        }
+        .delete-link, .delete-btn {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .delete-link:hover, .delete-btn:hover {
+            background-color: #f1b0b7;
+        }
+        .make-system-link {
+             background-color: #d1ecf1;
+             color: #0c5460;
+             border: 1px solid #bee5eb;
+        }
+        .make-system-link:hover {
+             background-color: #abdde5;
+        }
+        .edit-btn {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .edit-btn:hover {
+             background-color: #b1dfbb;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .flashes {
+            list-style: none;
+            padding: 0;
+            margin: 15px 0;
+        }
+        .flashes li {
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border-color: #bee5eb;
+        }
+        .template-preview {
+            max-height: 100px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word; /* changed from break-all */
+            font-size: 0.9em;
+            color: #333;
+        }
+         /* Add styles for the new editor section */
+         #prompt-template-editor {
+             /* Inherits .management-section styles if wrapped */
+             /* margin-bottom: 20px; */ /* Already handled by management-section */
+             /* padding: 15px; */
+             /* border: 1px solid #ccc; */
+             /* border-radius: 5px; */
+             /* background-color: #f9f9f9; */
+         }
+         #prompt-template-editor h3 {
+             margin-top: 0;
+             /* border-bottom, padding, margin handled by management-section h3 */
+         }
+         .form-message {
+             margin-top: 10px;
+             padding: 10px;
+             border-radius: 4px;
+             font-weight: bold;
+         }
+         .form-message-success {
+             color: #155724;
+             background-color: #d4edda;
+             border: 1px solid #c3e6cb;
+         }
+         .form-message-error {
+             color: #721c24;
+             background-color: #f8d7da;
+             border: 1px solid #f5c6cb;
+         }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="right-buttons">
+            <a href="{{ url_for('main.index') }}" class="top-btn">返回主页</a>
+            <a href="{{ url_for('main.logout') }}" class="top-btn">退出登录</a>
+        </div>
+    </div>
+    <div class="main-content" data-is-admin="{{ is_admin|string|lower }}"> <!-- Pass is_admin to JS -->
+        <h1>AI服务与模板管理</h1>
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <ul class="flashes">
+            {% for message in messages %}
+              <li>{{ message }}</li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+
+        <!-- AI 服务管理部分 -->
+        <div class="management-section" id="ai-service-management">
+             <h2>AI 服务配置</h2>
+             
+             <!-- 添加/编辑自定义配置 -->
+             <div class="management-section" id="add-edit-ai-config">
+                 <h3 id="ai-config-form-title">添加自定义配置</h3>
+                 <form method="post" class="ai-config-form" id="ai-config-form">
+                     <input type="hidden" id="ai-config-id" name="config_id"> <!-- Hidden field for editing -->
+                     <div>
+                         <label for="ai-name">配置名称:</label>
+                         <input type="text" id="ai-name" name="name" placeholder="给配置起个名字 (例如 My OpenAI)" required>
+                     </div>
+                     <div>
+                         <label for="ai-service-type">服务类型:</label>
+                         <select id="ai-service-type" name="service_type" required>
+                             <option value="" disabled selected>--请选择服务类型--</option>
+                             <option value="openai">OpenAI</option>
+                             <option value="deepseek">DeepSeek</option>
+                             <option value="groq">Groq</option>
+                             <option value="ollama">Ollama (本地)</option>
+                             <option value="custom_openai_compatible">其他 OpenAI 兼容 API</option>
+                             <!-- 在这里可以添加更多类型 -->
+                         </select>
+                     </div>
+                     <div>
+                         <label for="ai-base-url">基础 URL:</label>
+                         <input type="text" id="ai-base-url" name="base_url" placeholder="访问服务器的 URL (例如 https://api.openai.com)" required>
+                         <small>对于 OpenAI 兼容 API，通常是包含 `/v1` 的上一级目录，例如 `https://api.openai.com` 或 `http://localhost:11434` (对于 Ollama)</small>
+                     </div>
+                     <div>
+                         <label for="ai-model-name">模型名称:</label>
+                         <input type="text" id="ai-model-name" name="model_name" placeholder="模型标识符 (例如 gpt-4, deepseek-coder)" required>
+                     </div>
+                     <div>
+                         <label for="ai-api-key">API Key:</label>
+                         <input type="password" id="ai-api-key" name="api_key" placeholder="输入新 API Key (编辑时留空表示不更改)">
+                         <small>API Key 将被安全存储，不会在界面显示。</small>
+                     </div>
+                     <div>
+                         <button type="submit" id="ai-config-submit-btn">添加自定义配置</button>
+                         <button type="button" id="ai-config-cancel-btn" style="display: none;">取消编辑</button>
+                     </div>
+                     <div id="ai-config-form-message" class="form-message"></div>
+                 </form>
+             </div>
+             
+             <!-- 显示已配置服务 -->
+             <div class="management-section" id="existing-ai-configs">
+                 <h3>已配置的 AI 服务</h3>
+                 
+                 <h4>系统预设服务</h4>
+                 <table id="system-ai-configs-table">
+                      <thead><tr><th>ID</th><th>名称</th><th>类型</th><th>模型</th><th>基础 URL</th><th>所有者</th><th>启用</th><th>操作</th></tr></thead>
+                      <tbody id="system-ai-configs-tbody">
+                         {% if system_configs %}
+                             {% for config in system_configs %}
+                             <tr data-config-id="{{ config.id }}">
+                                 <td>{{ config.id }}</td>
+                                 <td>{{ config.name }}</td>
+                                 <td>{{ config.service_type }}</td>
+                                 <td>{{ config.model_name }}</td>
+                                 <td>{{ config.base_url }}</td>
+                                 <td>{% if config.owner %}{{ config.owner.username }}{% else %}系统{% endif %}</td>
+                                 <td>
+                                     <input type="radio" name="active_ai_config" value="{{ config.id }}" 
+                                            id="config-{{ config.id }}" 
+                                            {% if config.id == active_config_id %}checked{% endif %}>
+                                 </td>
+                                 <td>
+                                     {% if is_admin %}
+                                     <a href="#" class="edit-btn ai-edit-btn" data-id="{{ config.id }}">编辑</a>
+                                     <a href="#" class="delete-link system-delete-btn" data-id="{{ config.id }}" data-name="{{ config.name|escape }}">删除</a>
+                                     {% else %}
+                                     -
+                                     {% endif %}
+                                 </td>
+                             </tr>
+                             {% endfor %}
+                         {% else %}
+                             <tr><td colspan="8">无系统预设服务。</td></tr>
+                         {% endif %}
+                      </tbody>
+                 </table>
+                 
+                 <h4>我的自定义服务</h4>
+                 <table id="user-ai-configs-table">
+                      <thead><tr><th>ID</th><th>名称</th><th>类型</th><th>模型名称</th><th>基础 URL</th><th>启用</th><th>操作</th></tr></thead>
+                      <tbody id="user-ai-configs-tbody">
+                     {% if user_configs %}
+                         {% for config in user_configs %}
+                         <tr data-config-id="{{ config.id }}">
+                             <td>{{ config.id }}</td>
+                             <td>{{ config.name }}</td>
+                             <td>{{ config.service_type }}</td>
+                             <td>{{ config.model_name }}</td>
+                             <td>{{ config.base_url }}</td>
+                             <td>
+                                 <input type="radio" name="active_ai_config" value="{{ config.id }}" 
+                                        id="config-{{ config.id }}" 
+                                        {% if config.id == active_config_id %}checked{% endif %}>
+                             </td>
+                             <td>
+                                 <a href="#" class="edit-btn ai-edit-btn" data-id="{{ config.id }}">编辑</a>
+                                 <a href="{{ url_for('ai_service.delete', config_id=config.id) }}" onclick="return confirm('确定删除配置 \'{{ config.name|escape }}\'？')" class="delete-link user-delete-btn">删除</a>
+                                 {% if is_admin %}
+                                 <a href="#" class="make-system-link" data-id="{{ config.id }}" data-name="{{ config.name|escape }}">设为系统预设</a>
+                                 {% endif %}
+                             </td>
+                         </tr>
+                         {% endfor %}
+                     {% else %}
+                          <tr><td colspan="7">您还没有添加自定义 AI 服务配置。</td></tr>
+                     {% endif %}
+                      </tbody>
+                 </table>
+             </div>
+        </div>
+
+        <hr> 
+
+        <!-- 提示词模板管理部分 -->
+        <div class="management-section" id="prompt-template-management">
+            <h2>提示词模板管理</h2>
+            <div id="prompt-template-editor" > <!-- Removed data-is-admin here, get from parent -->
+                <h3>添加/编辑模板 {% if not is_admin %}(仅管理员可操作){% endif %}</h3>
+                <form id="prompt-template-form" {% if not is_admin %}style="display: none;"{% endif %}>
+                    <input type="hidden" id="template-id">
+                    <div>
+                        <label for="template-name">模板名称:</label>
+                        <input type="text" id="template-name" name="name" required>
+                    </div>
+                    <div>
+                        <label for="template-string">模板内容:</label>
+                        <textarea id="template-string" name="template_string" rows="6" required placeholder="使用 @[占位符] 编辑模板，例如：参考@[提示词]，以@[风格]的风格..."></textarea>
+                        <small>支持的占位符: @[前文], @[后文], @[提示词], @[字数], @[风格], @[设定]</small>
+                    </div>
+                    <div>
+                        <label for="template-is-default">设为系统默认:</label>
+                        <input type="checkbox" id="template-is-default" name="is_default"> 
+                         <small>(仅管理员可修改系统模板的默认状态)</small>
+                    </div>
+                    <div>
+                        <button type="submit">保存模板</button>
+                        <button type="button" id="clear-template-form">清空/取消编辑</button>
+                    </div>
+                </form>
+                 <div id="template-form-message" class="form-message"></div>
+            </div>
+
+            <h3>现有模板 (系统 + 我的)</h3>
+            <table id="prompt-templates-table">
+                <thead>
+                    <tr>
+                        <th>名称</th>
+                        <th>模板内容 (预览)</th>
+                        <th>系统默认?</th>
+                        <th>类型</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="prompt-templates-tbody">
+                    <!-- JS will populate this -->
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const mainContentDiv = document.querySelector('.main-content');
+            const isAdmin = mainContentDiv.dataset.isAdmin === 'true'; // Get admin status
+
+            // --- AI Service Configuration Form Handling ---
+            const aiConfigForm = document.getElementById('ai-config-form');
+            const aiConfigIdInput = document.getElementById('ai-config-id');
+            const aiNameInput = document.getElementById('ai-name');
+            const aiServiceTypeSelect = document.getElementById('ai-service-type');
+            const aiBaseUrlInput = document.getElementById('ai-base-url');
+            const aiModelNameInput = document.getElementById('ai-model-name');
+            const aiApiKeyInput = document.getElementById('ai-api-key');
+            const aiConfigSubmitBtn = document.getElementById('ai-config-submit-btn');
+            const aiConfigCancelBtn = document.getElementById('ai-config-cancel-btn');
+            const aiConfigFormTitle = document.getElementById('ai-config-form-title');
+            const aiConfigFormMessage = document.getElementById('ai-config-form-message');
+            const aiServiceManagementDiv = document.getElementById('ai-service-management'); // Get the container
+
+            // Function to clear and reset the AI config form
+            function resetAiConfigForm() {
+                aiConfigForm.reset(); // Resets form fields
+                aiConfigIdInput.value = ''; // Clear hidden ID
+                aiConfigFormTitle.textContent = '添加自定义配置';
+                aiConfigSubmitBtn.textContent = '添加自定义配置';
+                aiConfigCancelBtn.style.display = 'none';
+                aiApiKeyInput.placeholder = '输入您的 API Key (可选，留空表示无需密钥)'; // Reset placeholder
+                aiConfigFormMessage.textContent = '';
+                aiConfigFormMessage.className = 'form-message';
+                // Reset the form's action if it was changed (it wasn't in this setup)
+                // aiConfigForm.action = "{{ url_for('ai_service.manage') }}"; 
+                // aiConfigForm.method = "post";
+            }
+
+            // Handle Cancel Edit button click
+            aiConfigCancelBtn.addEventListener('click', resetAiConfigForm);
+
+            // Handle form submission (Add or Edit)
+            aiConfigForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                aiConfigFormMessage.textContent = '';
+                aiConfigFormMessage.className = 'form-message';
+
+                const configId = aiConfigIdInput.value;
+                const isEditing = !!configId;
+
+                const formData = {
+                    name: aiNameInput.value.trim(),
+                    service_type: aiServiceTypeSelect.value,
+                    base_url: aiBaseUrlInput.value.trim(),
+                    model_name: aiModelNameInput.value.trim(),
+                    api_key: aiApiKeyInput.value // Send the key, even if empty (backend decides update logic)
+                };
+
+                // Basic validation (should match backend eventually)
+                if (!formData.name || !formData.service_type || !formData.base_url || !formData.model_name) {
+                     showAiConfigMessage('名称、服务类型、基础 URL 和模型名称不能为空。', 'error');
+                     return;
+                 }
+                 
+                let url, method;
+                if (isEditing) {
+                    url = `/api/ai-services/${configId}`;
+                    method = 'PUT';
+                } else {
+                    // Adding uses the original form POST to the manage route
+                    // We just let the default form submission happen for adding
+                    // Or, uncomment below to use an API endpoint for adding too
+                     url = "{{ url_for('ai_service.manage') }}"; // Keep using the manage route for POST
+                     method = 'POST'; 
+                     // --- If using an API endpoint for adding: ---
+                     // url = '/api/ai-services'; 
+                     // method = 'POST';
+                     // --- End API endpoint for adding ---
+                     
+                     // For standard POST, we don't need fetch, just submit the form.
+                     // However, to show messages consistently, we can use fetch for POST too.
+                     // Let's stick to the original POST for now unless problems arise.
+                      aiConfigForm.submit(); // Submit the form normally for adding
+                      return; // Stop JS execution for standard POST
+                }
+                
+                // --- Fetch logic for PUT (Editing) --- 
+                try {
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            // Add CSRF token if needed
+                        },
+                        body: JSON.stringify(formData)
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(result.error || `HTTP error ${response.status}`);
+                    }
+
+                    showAiConfigMessage(isEditing ? '配置更新成功！' : '配置添加成功！', 'success');
+                    resetAiConfigForm();
+                    // Refresh page to see changes (simplest approach)
+                    window.location.reload();
+                    // TODO: Update table row dynamically for better UX
+
+                } catch (error) {
+                    console.error('AI 配置保存失败:', error);
+                    showAiConfigMessage(`保存失败: ${error.message}`, 'error');
+                }
+            });
+
+            function showAiConfigMessage(message, type = 'info') {
+                aiConfigFormMessage.textContent = message;
+                aiConfigFormMessage.className = `form-message form-message-${type}`;
+            }
+
+            // --- Active Config Selection Handling ---
+            if (aiServiceManagementDiv) {
+                aiServiceManagementDiv.addEventListener('change', async (event) => {
+                    if (event.target.type === 'radio' && event.target.name === 'active_ai_config') {
+                        const selectedConfigId = event.target.value;
+                        console.log('Selected active config:', selectedConfigId);
+                        
+                        // Show immediate feedback (optional)
+                        showAiConfigMessage('正在更新启用的配置...', 'info'); 
+
+                        try {
+                            const response = await fetch('/api/user/settings/active-ai-service', {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    // Add CSRF token if needed
+                                },
+                                body: JSON.stringify({ config_id: selectedConfigId })
+                            });
+
+                            const result = await response.json();
+
+                            if (!response.ok) {
+                                throw new Error(result.error || `HTTP error ${response.status}`);
+                            }
+                            
+                            // Show success message (e.g., using a flash message area or the form message area)
+                            // alert(result.message); // Simple alert
+                            showAiConfigMessage(result.message, 'success');
+                            // No page reload needed unless other parts depend on it immediately.
+
+                        } catch (error) {
+                            console.error('更新启用配置失败:', error);
+                            showAiConfigMessage(`更新失败: ${error.message}`, 'error');
+                            // Optionally, revert the radio button selection? Needs careful state management.
+                        }
+                    }
+                });
+            }
+
+            // --- Table Button Click Handling --- 
+            const userConfigsTbody = document.getElementById('user-ai-configs-tbody');
+            const systemConfigsTbody = document.getElementById('system-ai-configs-tbody'); 
+
+            function handleTableClick(event) {
+                const target = event.target;
+                const configId = target.dataset.id;
+                const configName = target.dataset.name;
+
+                if (!configId) return;
+
+                // Handle Edit Button
+                if (target.classList.contains('ai-edit-btn')) {
+                    event.preventDefault();
+                    const row = target.closest('tr');
+                    if (!row) return;
+
+                    // Fetch full config details (API Key won't be returned)
+                    // We need the details to populate the form.
+                    // Let's find the data from the table row itself for simplicity,
+                    // assuming all needed fields are visible or stored somewhere accessible.
+                    // Note: API Key cannot be fetched this way.
+                    
+                    // Extract data directly from table cells (adjust indices if table structure changes)
+                    const cells = row.cells;
+                    const currentData = {
+                        id: cells[0].textContent,
+                        name: cells[1].textContent,
+                        service_type: cells[2].textContent,
+                        model_name: cells[3].textContent,
+                        base_url: cells[4].textContent,
+                        // owner: cells[5] ? cells[5].textContent : null // For system table
+                    };
+
+                    // Populate the form
+                    aiConfigIdInput.value = currentData.id;
+                    aiNameInput.value = currentData.name;
+                    aiServiceTypeSelect.value = currentData.service_type;
+                    aiBaseUrlInput.value = currentData.base_url;
+                    aiModelNameInput.value = currentData.model_name;
+                    aiApiKeyInput.value = ''; // Clear API key field when editing
+                    aiApiKeyInput.placeholder = '保持不变或输入新 API Key'; // Change placeholder
+
+                    // Update form title and button text
+                    aiConfigFormTitle.textContent = `编辑配置 #${currentData.id}`;
+                    aiConfigSubmitBtn.textContent = '保存更改';
+                    aiConfigCancelBtn.style.display = 'inline-block'; // Show cancel button
+                    
+                    aiConfigForm.scrollIntoView({ behavior: 'smooth' });
+                    aiConfigFormMessage.textContent = ''; // Clear previous messages
+                }
+                // Handle Make System Preset Button (Admin Only)
+                else if (isAdmin && target.classList.contains('make-system-link')) {
+                    event.preventDefault(); 
+                    if (confirm(`确定要将配置 "${configName}" 设为系统预设服务吗？\n此操作会使其对所有用户可见，但您仍是所有者。`)) {
+                        makeConfigSystem(configId, configName);
+                    }
+                }
+                // Handle Delete System Config Button (Admin Only)
+                else if (isAdmin && target.classList.contains('system-delete-btn')) {
+                    event.preventDefault();
+                    if (confirm(`确定要永久删除系统预设配置 "${configName}" 吗？\n此操作不可撤销！`)) {
+                         deleteConfig(configId, configName);
+                    }
+                }
+                // Note: User config delete uses standard link/route, not handled here.
+            }
+
+            // Add listeners to both table bodies
+            if (userConfigsTbody) {
+                userConfigsTbody.addEventListener('click', handleTableClick);
+            }
+            if (systemConfigsTbody) {
+                systemConfigsTbody.addEventListener('click', handleTableClick);
+            }
+            
+            // --- Helper Functions for API calls ---
+            async function makeConfigSystem(configId, configName) {
+                 try {
+                    const response = await fetch(`/api/ai-services/${configId}/make-system`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error || `HTTP error ${response.status}`);
+                    alert(result.message || '操作成功！');
+                    window.location.reload(); 
+                } catch (error) {
+                    console.error('设置系统服务失败:', error);
+                    alert(`操作失败: ${error.message}`);
+                }
+            }
+
+            async function deleteConfig(configId, configName) {
+                try {
+                    const response = await fetch(`/api/ai-services/${configId}`, {
+                        method: 'DELETE'
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error || `HTTP error ${response.status}`);
+                    alert(result.message || '配置已删除。');
+                    window.location.reload(); 
+                } catch (error) {
+                    console.error('删除配置失败:', error);
+                    alert(`删除失败: ${error.message}`);
+                }
+            }
+
+            // --- Prompt Template Management (existing JS, ensure it uses isAdmin correctly) --- 
+            const templateTbody = document.getElementById('prompt-templates-tbody');
+            const templateEditorDiv = document.getElementById('prompt-template-editor'); // Get the editor div
+            const templateForm = document.getElementById('prompt-template-form');
+            const templateIdInput = document.getElementById('template-id');
+            const templateNameInput = document.getElementById('template-name');
+            const templateStringInput = document.getElementById('template-string');
+            const templateIsDefaultInput = document.getElementById('template-is-default');
+            const clearFormButton = document.getElementById('clear-template-form');
+            const formMessageDiv = document.getElementById('template-form-message');
+
+            // Fetch and display templates (modified to show type and handle admin actions)
+            async function fetchAndDisplayTemplates() {
+                templateTbody.innerHTML = `<tr><td colspan="5">加载中...</td></tr>`; 
+                try {
+                    const response = await fetch('/api/prompt-templates');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const templates = await response.json();
+
+                    templateTbody.innerHTML = '';
+                    if (templates.length === 0) {
+                         templateTbody.innerHTML = `<tr><td colspan="5">暂无模板。</td></tr>`;
+                    } else {
+                        templates.forEach(template => {
+                            const row = templateTbody.insertRow();
+                            const isSystemTemplate = template.user_id === null;
+                            const templateType = isSystemTemplate ? '系统' : '我的';
+                            
+                            // Determine actions based on admin status and template type
+                            let actionCellHtml = '';
+                            if (isAdmin) {
+                                actionCellHtml = `
+                                    <button class="edit-btn" data-id="${template.id}">编辑</button>
+                                    <button class="delete-btn" data-id="${template.id}">删除</button>
+                                `;
+                            } else if (!isSystemTemplate) {
+                                // Non-admin seeing their own template
+                                actionCellHtml = `
+                                    <button class="edit-btn" data-id="${template.id}">编辑</button>
+                                    <button class="delete-btn" data-id="${template.id}">删除</button>
+                                `;
+                            }
+                            // No buttons shown for system templates to non-admins
+                            
+                            row.innerHTML = `
+                                <td>${escapeHtml(template.name)}</td>
+                                <td class="template-preview">${escapeHtml(template.template_string)}</td>
+                                <td>${template.is_default ? '是' : '否'}</td>
+                                <td>${templateType}</td>
+                                <td>${actionCellHtml || '-'}</td> <!-- Show hyphen if no actions -->
+                            `;
+                        });
+                    }
+                } catch (error) {
+                    console.error('获取模板列表失败:', error);
+                    templateTbody.innerHTML = `<tr><td colspan="5" style="color: red;">加载模板失败，请检查网络或联系管理员。</td></tr>`;
+                }
+            }
+
+            // Form submit logic (only active for admin)
+            if (isAdmin && templateForm) {
+                templateForm.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+                    formMessageDiv.textContent = '';
+                    formMessageDiv.className = 'form-message';
+
+                    const templateId = templateIdInput.value;
+                    const name = templateNameInput.value.trim();
+                    const templateString = templateStringInput.value;
+                    // Default status can only be set by admin (handled server-side, but we send it)
+                    const isDefault = templateIsDefaultInput.checked; 
+
+                    if (!name || !templateString) {
+                        showFormMessage('模板名称和内容不能为空。', 'error');
+                        return;
+                    }
+
+                    const url = templateId ? `/api/prompt-templates/${templateId}` : '/api/prompt-templates';
+                    const method = templateId ? 'PUT' : 'POST';
+
+                    try {
+                        const response = await fetch(url, {
+                            method: method,
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ 
+                                name: name, 
+                                template_string: templateString, 
+                                is_default: isDefault // Send the checkbox status
+                            }),
+                        });
+
+                        const result = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(result.error || `HTTP error! status: ${response.status}`);
+                        }
+
+                        showFormMessage(`模板 "${escapeHtml(name)}" 保存成功！`, 'success');
+                        clearTemplateForm();
+                        fetchAndDisplayTemplates(); // Refresh list
+
+                    } catch (error) {
+                        console.error('保存模板失败:', error);
+                        showFormMessage(`保存失败: ${error.message}`, 'error');
+                    }
+                });
+            } // End if (isAdmin && templateForm)
+
+            // Table button click logic (edit/delete)
+            templateTbody.addEventListener('click', async (event) => {
+                 const target = event.target;
+                 const templateId = target.dataset.id;
+
+                 if (!templateId) return;
+
+                 const canPerformAction = isAdmin || target.closest('tr').querySelector('td:nth-child(4)').textContent === '我的';
+
+                 if (target.classList.contains('edit-btn') && canPerformAction) {
+                      try {
+                         const response = await fetch(`/api/prompt-templates/${templateId}`);
+                          if (!response.ok) {
+                             throw new Error(`HTTP error! status: ${response.status}`);
+                         }
+                         const template = await response.json();
+                         
+                         // Check again if admin or owner before populating form
+                         const isSystemTemplate = template.user_id === null;
+                         if (isAdmin || (!isSystemTemplate && template.user_id /* check if user id matches current? */)) {
+                             templateIdInput.value = template.id;
+                             templateNameInput.value = template.name;
+                             templateStringInput.value = template.template_string;
+                             // Only admin should be able to effectively change default status via UI?
+                             templateIsDefaultInput.checked = template.is_default; 
+                             templateIsDefaultInput.disabled = !isAdmin; // Disable checkbox if not admin
+
+                             templateForm.style.display = 'block'; // Ensure form is visible
+                             templateForm.scrollIntoView({ behavior: 'smooth' }); 
+                             formMessageDiv.textContent = '';
+                         } else {
+                              alert('您无权编辑此模板。')
+                         }
+                     } catch (error) {
+                          console.error('获取模板详情失败:', error);
+                          alert('加载模板信息失败，请重试。');
+                     }
+                 }
+                 else if (target.classList.contains('delete-btn') && canPerformAction) {
+                      const templateRow = target.closest('tr');
+                      const templateName = templateRow.cells[0].textContent;
+
+                     if (confirm(`确定要删除模板 "${templateName}" 吗？`)) {
+                         try {
+                             const response = await fetch(`/api/prompt-templates/${templateId}`, {
+                                 method: 'DELETE',
+                             });
+
+                             if (!response.ok) {
+                                 let errorMsg = `HTTP error! status: ${response.status}`;
+                                 try {
+                                     const errData = await response.json();
+                                     errorMsg = errData.error || errorMsg;
+                                 } catch(e) {}
+                                 throw new Error(errorMsg);
+                             } 
+
+                             alert(`模板 "${templateName}" 已删除。`);
+                             fetchAndDisplayTemplates(); // Refresh list
+                             if (templateIdInput.value === templateId) {
+                                 clearTemplateForm();
+                             }
+
+                         } catch (error) {
+                             console.error('删除模板失败:', error);
+                             alert(`删除失败: ${error.message}`);
+                         }
+                     }
+                 }
+            });
+            
+            // Clear form button (only active for admin)
+            if (isAdmin && clearFormButton) {
+                 clearFormButton.addEventListener('click', clearTemplateForm);
+            }
+            
+            function clearTemplateForm() {
+                if (isAdmin) {
+                    templateForm.reset();
+                    templateIdInput.value = '';
+                    templateIsDefaultInput.disabled = false; // Re-enable checkbox
+                    formMessageDiv.textContent = '';
+                    formMessageDiv.className = 'form-message';
+                }
+            }
+
+            function showFormMessage(message, type = 'info') {
+                formMessageDiv.textContent = message;
+                formMessageDiv.className = `form-message form-message-${type}`;
+            }
+
+            function escapeHtml(unsafe) {
+                if (unsafe === null || typeof unsafe === 'undefined') return '';
+                return unsafe
+                    .toString()
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
+            // Initial load
+            fetchAndDisplayTemplates();
+        });
+    </script>
+
+</body>
+</html> 
