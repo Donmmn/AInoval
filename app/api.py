@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, Response
 from flask_login import login_required, current_user # 导入 login_required 和 current_user
 # 确保从 .models 包导入，依赖 __init__.py
 from .models import FileSystemItem, User, Group, PromptTemplate, AIService # 导入 User 模型和 Group 模型
@@ -675,93 +675,143 @@ def admin_get_user_prompt_templates():
 
 # --- 使用模板生成提示词 API ---
 @api_bp.route('/generate-with-template', methods=['POST'])
-@login_required # 假设需要用户登录才能生成
+@login_required
 def generate_prompt_with_template():
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-
-    template_id = data.get('template_id')
-    variables = data.get('variables', {})
-    # 新增：从请求中获取 ai_service_config_id，可能为 None
-    requested_ai_config_id = data.get('ai_service_config_id') 
+    user_id_for_log = current_user.id if hasattr(current_user, 'id') else 'anonymous'
     
-    # --- 确定要使用的 AI 服务配置 ---
-    ai_config = None
-    error_message = None
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
 
-    if requested_ai_config_id:
-        # 1. 用户明确指定了配置
-        try:
-            config_id = int(requested_ai_config_id)
-            # 查询用户自己的或系统服务
-            ai_config = AIService.query.filter(
-                AIService.id == config_id,
-                (AIService.owner_id == current_user.id) | (AIService.is_system_service == True)
-            ).first()
+        template_id = data.get('template_id')
+        input_data = data.get('input_data', {})
+        requested_ai_config_id = data.get('ai_service_config_id') # 可能为空字符串 ""
+
+        # --- 确定要使用的 AI 服务配置 --- 
+        ai_config = None
+        error_message = None
+        config_id_to_use = None
+
+        # 1. 处理请求的 ID (可能为空字符串)
+        if requested_ai_config_id and str(requested_ai_config_id).isdigit():
+            try:
+                config_id_to_use = int(requested_ai_config_id)
+                print(f"用户请求使用特定 AI 服务 ID: {config_id_to_use}")
+            except (ValueError, TypeError):
+                print(f"无效的 AI 服务 ID 请求: {requested_ai_config_id}")
+                error_message = "无效的 AI 服务 ID"
+        elif requested_ai_config_id == "" or requested_ai_config_id is None:
+            print("用户请求使用默认 AI 服务...")
+            # 2. 尝试获取用户设置的默认服务
+            if current_user.is_authenticated and current_user.active_ai_service_id:
+                config_id_to_use = current_user.active_ai_service_id
+                print(f"使用用户默认 AI 服务 ID: {config_id_to_use}")
+            else:
+                # 3. 尝试获取系统默认服务
+                print("用户未设置默认服务，尝试查找系统默认...")
+                system_default_config = AIService.query.filter_by(is_default=True, is_system_service=True).first()
+                if system_default_config:
+                    config_id_to_use = system_default_config.id
+                    print(f"使用系统默认 AI 服务 ID: {config_id_to_use}")
+                else:
+                    print("未找到用户默认或系统默认 AI 服务")
+                    error_message = "未配置默认 AI 服务"
+        else:
+            # 其他非数字非空字符串的无效情况
+             print(f"无效的 AI 服务 ID 请求 (非数字非空): {requested_ai_config_id}")
+             error_message = "无效的 AI 服务 ID"
+
+        # 4. 如果找到了要使用的 ID，则获取配置
+        if config_id_to_use and not error_message:
+            ai_config = AIService.query.get(config_id_to_use)
             if not ai_config:
-                 error_message = "指定的 AI 服务配置不存在或无权访问。"
-        except (ValueError, TypeError):
-            error_message = "无效的 AI 服务配置 ID。"
-    else:
-        # 2. 用户未指定，查找系统默认配置
-        ai_config = AIService.query.filter_by(is_system_service=True, is_default=True).first()
-        if not ai_config:
-            # 3. 如果没有系统默认，返回错误
-            error_message = "未找到系统默认 AI 服务配置。请联系管理员设置。"
-            # --- 或者，如果想回退到用户自己的激活配置，可以取消下面的注释 ---
-            # if current_user.active_ai_service_id:
-            #     ai_config = AIService.query.get(current_user.active_ai_service_id)
-            #     if not ai_config: # 检查用户激活的是否还存在或有效
-            #         error_message = "用户启用的 AI 服务配置无效，且未找到系统默认配置。"
-            # else: # 用户没启用，也没有系统默认
-            #     error_message = "请先选择一个 AI 服务配置或启用一个默认配置。"
+                print(f"错误：无法找到 ID 为 {config_id_to_use} 的 AI 服务配置（即使已确定 ID）")
+                error_message = f"找不到 ID 为 {config_id_to_use} 的 AI 服务"
+            else:
+                 # 检查权限 (系统服务或用户拥有)
+                 user_owns = current_user.is_authenticated and ai_config.owner_id == current_user.id
+                 is_accessible = ai_config.is_system_service or user_owns
+                 if not is_accessible:
+                     print(f"错误：用户 {user_id_for_log} 无权访问 AI 服务 {ai_config.id} ('{ai_config.name}')")
+                     error_message = f"无权使用 AI 服务 '{ai_config.name}'"
 
-    if error_message:
-        return jsonify({'error': error_message}), 400
+        # 5. 如果有错误，返回错误
+        if error_message:
+            print(f"AI 服务配置查找失败: {error_message}")
+            return jsonify({'error': error_message}), 400 # Bad Request or appropriate code
         
-    if not ai_config: # 双重检查，理论上如果 error_message 为空，ai_config 必不为空
-         return jsonify({'error': '无法确定要使用的 AI 服务配置。'}), 500
+        # --- 如果 ai_config 仍然是 None (极端情况，逻辑应避免)，也报错 ---
+        if not ai_config:
+             print("错误：在处理结束时 ai_config 仍然是 None，存在逻辑错误！")
+             return jsonify({'error': '无法确定要使用的 AI 服务配置'}), 500
+            
+        print(f"最终确定使用 AI 服务: ID={ai_config.id}, Name='{ai_config.name}', Streaming Enabled={ai_config.enable_streaming}")
 
-    # --- 获取并渲染模板 ---
-    # ... (模板获取和渲染逻辑保持不变) ...
+        # --- 处理提示词模板 --- 
+        final_prompt = None
+        if template_id:
+            try:
+                template_id_int = int(template_id)
+                template = PromptTemplate.query.get(template_id_int)
+                if not template:
+                    return jsonify({'error': f'Template with id {template_id_int} not found'}), 404
+                # 权限检查 (简单示例：只有管理员或模板所有者能用？)
+                # if not current_user.is_admin and template.owner_id != current_user.id:
+                #    return jsonify({'error': 'Unauthorized to use this template'}), 403
+                final_prompt = process_prompt_template(template.template_string, input_data)
+            except ValueError:
+                return jsonify({'error': 'Invalid template_id format'}), 400
+            except Exception as e:
+                print(f"Error processing template {template_id}: {e}")
+                return jsonify({'error': f'Error processing template: {e}'}), 500
+        else:
+            # 如果没有模板，直接使用 input_data 中的 '提示词' (如果存在)
+            final_prompt = input_data.get('提示词', '')
+            if not final_prompt:
+                 return jsonify({'error': 'No template selected and no prompt provided in input_data'}), 400
+                
+        # --- 调用 AI 服务 --- 
+        if ai_config.enable_streaming:
+            # --- 流式传输 --- 
+            # 提前获取所需信息，避免在生成器中使用 Flask 上下文
+            config_details_for_stream = {
+                 'api_key': ai_config.api_key,
+                 'base_url': ai_config.base_url,
+                 'model_name': ai_config.model_name,
+                 'service_type': ai_config.service_type,
+                 'name': ai_config.name # 用于日志
+            }
+            def stream_generator():
+                 try:
+                    # print(f"--- Stream Generator Started for User {user_id_for_log} ---")
+                    # 使用 config_details 调用
+                    for chunk in call_ai_service(final_prompt, config_details=config_details_for_stream, enable_streaming=True):
+                        yield chunk
+                    # print(f"--- Stream Generator Finished for User {user_id_for_log} ---")
+                 except Exception as e:
+                     # 在流内部记录错误，但可能无法轻易发回客户端
+                     # 这里的日志对于调试很重要
+                     print(f"!!! Error during streaming generation for user {user_id_for_log}, config '{config_details_for_stream.get('name', 'N/A')}': {e}")
+                     # 可以尝试 yield 一个错误标记，但前端需要特殊处理
+                     # yield f"STREAM_ERROR: {e}" \
+            return Response(stream_generator(), mimetype='text/plain')
+        else:
+            # --- 非流式传输 --- 
+            # 使用 config_id 调用
+            result = call_ai_service(final_prompt, config_id=ai_config.id, enable_streaming=False)
+            if 'error' in result:
+                return jsonify({'error': result['error']}), 500 # Or map specific errors
+            else:
+                 # 成功时，返回包含生成文本的 JSON
+                 return jsonify({'generated_text': result.get('content', '')}) # 使用 get 以防万一
+                
+    except Exception as e:
+        import traceback
+        print(f"Error in generate_prompt_with_template for user {user_id_for_log}: {traceback.format_exc()}")
+        return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
 
-    # --- 调用 AI 服务 ---
-    print(f"User {current_user.id} calling AI service {ai_config.id} with template {template_id}") # Log
-    ai_result = call_ai_service(prompt=final_prompt, config_id=ai_config.id)
-
-    # --- 处理 AI 服务返回结果 ---
-    if "error" in ai_result:
-        # 将 AI 服务返回的错误传递给前端
-        # 可以考虑根据错误类型设置不同的状态码，但 500 (Internal Server Error / Service Error) 通常是安全的
-        print(f"AI service call failed for user {current_user.id}: {ai_result['error']}") # Log error
-        # 返回给前端的错误信息可以稍微通用一些，避免泄露过多内部细节
-        user_error_message = ai_result['error'] 
-        # 可以根据需要屏蔽或修改特定的错误信息
-        # 例如，如果错误包含 API Key，需要过滤掉
-        if "API key" in user_error_message:
-             user_error_message = "AI 服务认证失败或配置错误" # Generic message
-             
-        return jsonify({'error': f"调用 AI 服务失败: {user_error_message}"}), 502 # 502 Bad Gateway is often suitable for upstream errors
-    
-    elif "success" in ai_result and "content" in ai_result:
-        # 成功获取 AI 生成的内容
-        generated_text = ai_result['content']
-        print(f"AI service call successful for user {current_user.id}. Response length: {len(generated_text)}") # Log success
-        # TODO: 在这里可以添加积分扣除等逻辑
-        # deduct_user_points(current_user, cost_of_generation)
-
-        return jsonify({
-            'generated_text': generated_text,
-            # Optionally return the prompt used for debugging/reference
-            # 'final_prompt_used': final_prompt 
-        }), 200
-    else:
-        # 如果 AI 服务返回了未预期的格式 (非 error 也非 success)
-        print(f"Unexpected response format from call_ai_service for user {current_user.id}: {ai_result}") # Log
-        return jsonify({'error': 'AI 服务返回了无效的响应格式'}), 500
-
-# --- 新增：将用户 AI 服务配置设为系统服务 --- 
+# --- 新增：将用户 AI 服务配置设为系统服务 ---
 @api_bp.route('/ai-services/<int:config_id>/make-system', methods=['PUT'])
 @login_required
 def make_ai_service_system(config_id):

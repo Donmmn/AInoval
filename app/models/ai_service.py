@@ -22,6 +22,8 @@ class AIService(db.Model):
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True) # Link to user if not a system service
     # --- 新增：标记是否为系统默认服务 ---
     is_default = db.Column(db.Boolean, default=False, nullable=False)
+    # --- 新增：是否启用流式响应 ---
+    enable_streaming = db.Column(db.Boolean, nullable=False, default=True)
     
     # Relationship to User (if it's a user-owned service)
     # Specify foreign_keys explicitly due to multiple FK paths between User and AIService
@@ -41,7 +43,8 @@ class AIService(db.Model):
             'model_name': self.model_name,
             'is_system_service': self.is_system_service,
             'owner_id': self.owner_id,
-            'is_default': self.is_default
+            'is_default': self.is_default,
+            'enable_streaming': self.enable_streaming
             # IMPORTANT: Never return the api_key by default in to_dict unless explicitly needed and secured.
         }
         # Only include key if specifically requested (e.g., by the owner or admin for management)

@@ -1017,59 +1017,82 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestData)
                 });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.error || `HTTP error! status: ${response.status}`);
-                if (result && result.generated_text) {
-                   generatedText = result.generated_text;
-                } else {
-                   console.warn("API successful but no generated_text received.", result);
-                   throw new Error('AI 服务未返回有效内容。');
-               }
-                 
-                if (generatedText !== null && generatedText.length > 0) {
-                    // --- Insert generated text into TEXTAREA --- 
-                    const currentContent = novelContent.value;
-                    const selectionStart = novelContent.selectionStart;
-                    const selectionEnd = novelContent.selectionEnd;
-                    
-                    // Insert the generated text at the cursor position, replacing selection if any
-                    novelContent.value = currentContent.slice(0, selectionStart) + generatedText + currentContent.slice(selectionEnd);
-                    
-                    // Move cursor to the end of the inserted text
-                    const newCursorPos = selectionStart + generatedText.length;
-                    novelContent.focus();
-                    novelContent.setSelectionRange(newCursorPos, newCursorPos);
+                
+                const contentType = response.headers.get('content-type');
 
-                    console.log('Generation successful, inserted plain text into textarea.');
-                    
-                    // Trigger input event AFTER insertion
-                    novelContent.dispatchEvent(new Event('input', { bubbles: true }));
-                    
-                    /* --- Temporarily disable complex HTML insertion for textarea ---
-                    const selection = window.getSelection();
-                    if (selection.rangeCount > 0) {
-                        // ... (code for creating span.ai-generated and button) ...
-                        range.insertNode(span);
-                        // ... (code for moving cursor) ...
+                // --- 修改 If/Else 逻辑 --- 
+                if (response.ok) {
+                    if (contentType && contentType.includes('text/plain')) {
+                        // --- 处理流式响应 (text/plain) ---
+                        console.log('接收到流式响应 (text/plain)，开始处理...');
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let insertPos = novelContent.selectionStart;
+                        novelContent.focus();
+
+                        while (true) {
+                            const { value, done } = await reader.read();
+                            if (done) {
+                                console.log('流结束。');
+                                break;
+                            }
+                            const chunk = decoder.decode(value, { stream: true });
+                            const before = novelContent.value.substring(0, insertPos);
+                            const after = novelContent.value.substring(insertPos);
+                            novelContent.value = before + chunk + after;
+                            insertPos += chunk.length;
+                            novelContent.setSelectionRange(insertPos, insertPos);
+                            // novelContent.scrollTop = novelContent.scrollHeight;
+                        }
+                        novelContent.dispatchEvent(new Event('input', { bubbles: true }));
+                        console.log('流式生成成功。');
                     } else {
-                         console.error('Cannot insert generated text, no valid cursor position found.');
-                         alert('无法插入生成的文本，请将光标置于编辑区内。 ');
-                    }
-                    */
-                    // --- End insertion logic modification ---
-                    
+                        // --- 处理成功的非流式响应 (JSON) ---
+                        console.log('接收到成功的非流式响应，尝试解析 JSON...');
+                        const result = await response.json(); // 应该总是 JSON
+                        if (result && result.generated_text) {
+                           const generatedText = result.generated_text;
+                            const currentContent = novelContent.value;
+                            const selectionStart = novelContent.selectionStart;
+                            const selectionEnd = novelContent.selectionEnd;
+                            novelContent.value = currentContent.slice(0, selectionStart) + generatedText + currentContent.slice(selectionEnd);
+                            const newCursorPos = selectionStart + generatedText.length;
+                            novelContent.focus();
+                            novelContent.setSelectionRange(newCursorPos, newCursorPos);
+                            novelContent.dispatchEvent(new Event('input', { bubbles: true }));
+                            console.log('非流式生成成功，插入文本。');
+                        } else {
+                           console.warn("API 调用成功但未收到 generated_text", result);
+                           throw new Error('AI 服务未返回有效内容。');
+                       }
+                    } 
+                } else {
+                     // --- 处理失败的响应 (通常是 JSON 错误) ---
+                     console.log(`接收到失败响应 (状态码: ${response.status})，尝试解析 JSON 错误...`);
+                     // 即使失败，后端也应该返回 JSON 错误信息
+                     const result = await response.json(); // 尝试解析错误 JSON
+                     throw new Error(result.error || `HTTP error! status: ${response.status}`);
                 }
-                 // --- Remove old undo logic --- 
+                 
             } catch (error) {
-                console.error('生成内容失败:', error);
-                alert(`生成失败: ${error.message}`);
-                // lastGeneratedRange = null; // 移除
-                // undoGenBtn.style.display = 'none'; // 移除
+                // --- 统一捕获错误 (网络错误、JSON 解析错误、后端抛出的错误) ---
+                console.error('生成内容或处理响应时出错:', error);
+                // 提取更友好的错误信息（如果可能）
+                let errorMessage = error.message;
+                // 移除可能包含的 'Error: ' 前缀
+                if (errorMessage.startsWith('Error: ')) {
+                     errorMessage = errorMessage.substring(7);
+                 }
+                 // 如果错误来自后端 JSON，它通常在 message 中
+                 // 如果是 SyntaxError (比如空响应的 JSON 解析)，message 会包含更多技术细节
+                 if (error instanceof SyntaxError && errorMessage.includes('JSON')) {
+                     errorMessage = "无法解析服务器响应，可能是空的或格式错误。请检查服务器日志。";
+                 } 
+                alert(`生成失败: ${errorMessage}`);
             } finally {
                  generateBtn.textContent = '生成';
                  generateBtn.disabled = false;
-                 // undoGenBtn.disabled = !lastGeneratedRange; // 移除
-                 isGenerating = false; // Release the lock
+                 isGenerating = false; // 释放锁
             }
         }
 
@@ -2225,11 +2248,13 @@
             // --- 编辑器内容变化监听 ---
             novelContent.addEventListener('input', () => {
                 // When user types manually, disable the undo functionality
+                /*
                 if (lastGeneratedRange) {
                     console.log('User edited content, disabling undo.');
                     lastGeneratedRange = null;
                     undoGenBtn.style.display = 'none'; 
                 }
+                */
                 
                 if (currentEditingBookTitle && novelContent.dataset.currentItemType === 'book') {
                     const currentContent = novelContent.value;
