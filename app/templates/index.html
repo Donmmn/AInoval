@@ -768,6 +768,53 @@
         }
         /* --- End AI Generated Styles --- */
 
+        /* --- Associated Setting Styles --- */
+        .file-item .item-name {
+            /* Ensure item-name doesn't take all space if icon is present */
+            max-width: calc(100% - 45px); /* Adjust as needed */
+        }
+        .associated-setting-icon {
+            margin-left: 8px;
+            color: #6c757d; /* Grey color */
+            cursor: pointer;
+            font-size: 0.9em;
+            vertical-align: middle;
+        }
+        .associated-setting-icon:hover {
+            color: #007bff;
+        }
+        .associated-setting-details {
+            background-color: #e9ecef; /* Light grey background */
+            padding: 5px 8px 5px 30px; /* Indent content */
+            margin-top: 3px;
+            border-radius: 3px;
+            font-size: 0.9em;
+            display: flex; /* Use flex to align items */
+            justify-content: space-between; /* Space out name and button */
+            align-items: center;
+        }
+        .associated-setting-details span {
+            color: #495057;
+            margin-right: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .unlink-setting-btn {
+            background: #f8d7da;
+            color: #842029;
+            border: 1px solid #f5c2c7;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 0.85em;
+            cursor: pointer;
+            flex-shrink: 0; /* Prevent button shrinking */
+        }
+        .unlink-setting-btn:hover {
+            background: #e5a4aa;
+        }
+        /* --- End Associated Setting Styles --- */
+
     </style>
 </head>
 <body>
@@ -1221,6 +1268,19 @@
             });
         }
 
+        // 新增：取消关联设定书 API
+        async function disassociateSettingAPI(bookId) {
+             // Assuming the API endpoint identifies the setting book via the book ID
+             // The backend should handle finding which setting is linked to this book
+            return await fetchAPI(`/api/items/${bookId}/associate_setting`, {
+                 method: 'DELETE'
+                 // DELETE requests typically don't have a body
+             });
+             // IMPORTANT: The backend DELETE endpoint MUST return
+             // { success: true, setting_item: { id: '...', name: '...', type: 'setting', ... }, original_parent_id: '...' }
+             // for the frontend to properly re-render the setting item.
+        }
+
         // --- 字符统计函数 (原 countWords) ---
         function countCharacters(text) {
             // 直接返回字符串的长度即为字符数
@@ -1303,6 +1363,13 @@
                 return;
             }
             data.forEach(item => {
+                // --- 新增：检查设定书是否已被关联，如果是则跳过渲染 ---
+                if (item.type === 'setting' && item.associatedBookInfo) {
+                    console.log(`[Render Skip] Skipping associated setting: ${item.name} (associated with book ID: ${item.associatedBookInfo.id})`);
+                    return; // continue to next item in forEach
+                }
+                // --- 结束新增 --- 
+
                 const li = document.createElement('li');
                 li.classList.add('file-item');
                 li.dataset.id = item.id;
@@ -1356,6 +1423,24 @@
                     ul.style.display = item.collapsed ? 'none' : 'block'; // 根据状态显示/隐藏
                     li.appendChild(ul);
                 }
+
+                // --- 新增：处理书籍关联的设定书图标和详情区 --- 
+                if (item.type === 'book' && item.associatedSetting) {
+                     const iconSpan = li.querySelector('.item-name'); // Find the name span
+                     if (iconSpan) {
+                         const settingIcon = document.createElement('i');
+                         settingIcon.className = 'fas fa-scroll associated-setting-icon';
+                         settingIcon.dataset.settingId = item.associatedSetting.id;
+                         settingIcon.dataset.settingName = item.associatedSetting.name; // Store name too
+                         settingIcon.title = `关联设定: ${item.associatedSetting.name}`;
+                         iconSpan.insertAdjacentElement('afterend', settingIcon); // Add icon after name
+                     }
+                     const detailsDiv = document.createElement('div');
+                     detailsDiv.className = 'associated-setting-details';
+                     detailsDiv.style.display = 'none'; // Initially hidden
+                     li.appendChild(detailsDiv); // Add details container to the LI
+                }
+                // --- 结束新增 --- 
             });
         }
 
@@ -1859,86 +1944,146 @@
              event.preventDefault();
              currentDragTargetElement = targetElement;
         }
-        function handleDragOver(event, targetItemData, targetElement) {
+        function handleDragOver(event, targetItemData, targetElement) { // targetItemData/targetElement are from the listener's element
             event.preventDefault();
-             event.dataTransfer.dropEffect = 'move';
+            event.dataTransfer.dropEffect = 'move';
 
-            // 获取拖动项的类型
             const draggedType = draggedItemData ? draggedItemData.type : null;
-            // 获取目标项的类型
-            const targetType = targetElement ? targetElement.dataset.type : null;
+            if (!draggedType) return; // Exit if nothing is being dragged
 
-            if (!draggedItemData || !targetElement || targetElement.dataset.id === String(draggedItemData.id)) {
-                 clearDropClasses();
-                 insertPosition = null;
-                 return;
+            // Reliably find the .file-item the cursor is currently over
+            const currentHoverFileItemElement = event.target.closest('.file-item');
+
+            // If not hovering over a valid file item, or hovering over the item being dragged, exit
+            if (!currentHoverFileItemElement || (draggedItemData && currentHoverFileItemElement.dataset.id === String(draggedItemData.id))) {
+                clearDropClasses();
+                insertPosition = null;
+                // Reset currentDragTargetElement if it was the delete button
+                if (currentDragTargetElement === deleteBtn) {
+                    deleteBtn.classList.remove('drag-over-delete');
+                    currentDragTargetElement = null;
+                }
+                return;
             }
-            clearDropClasses(targetElement);
-            const targetRect = targetElement.getBoundingClientRect();
+
+            // Now we know we are hovering over a valid, different file item.
+            // Use THIS element for determining drop action and visual feedback.
+            const currentHoverItemType = currentHoverFileItemElement.dataset.type;
+            const currentHoverItemId = currentHoverFileItemElement.dataset.id; // We might need this later
+
+            // Update the tracked target element (used by handleDragLeave potentially)
+            currentDragTargetElement = currentHoverFileItemElement;
+
+            // Clear classes from other items, but not the one we are currently over
+            clearDropClasses(currentHoverFileItemElement);
+
+            const targetRect = currentHoverFileItemElement.getBoundingClientRect();
             const verticalMidpoint = targetRect.top + targetRect.height / 2;
             const isOverTopHalf = event.clientY < verticalMidpoint;
-            
-            // --- 判断放置类型 --- 
-            insertPosition = null; // 重置
 
-            // Case 1: 拖动设定书到书籍上 -> 关联
-            if (draggedType === 'setting' && targetType === 'book') {
-                targetElement.classList.add('drag-over-associate');
+            insertPosition = null; // Reset position for this event frame
+
+            // --- Determine Drop Action based on the *actual* hovered item ---
+
+            // Case 1: Dragging Setting onto Book (primary check)
+            if (draggedType === 'setting' && currentHoverItemType === 'book') {
+                currentHoverFileItemElement.classList.add('drag-over-associate');
                 insertPosition = 'associate';
             }
-            // Case 2: 拖动到文件夹上 -> 放入或排序
-            else if (targetType === 'folder') {
-                const dropIntoFolderThreshold = targetRect.height * 0.2;
-                if (event.clientY < targetRect.top + dropIntoFolderThreshold) {
-                    targetElement.classList.add('drag-over-insert-before');
-                    insertPosition = 'before';
-                } else if (event.clientY > targetRect.bottom - dropIntoFolderThreshold) {
-                    targetElement.classList.add('drag-over-insert-after');
-                    insertPosition = 'after';
+            // Case 2: Dragging onto Folder
+            else if (currentHoverItemType === 'folder') {
+                // Prevent dragging a folder into itself or its descendants (simple check)
+                let isDraggingIntoSelfOrDescendant = false;
+                if (draggedItemData && draggedItemData.type === 'folder') {
+                     // Check if currentHoverFileItemElement is the dragged element or inside it
+                     if (currentHoverFileItemElement.dataset.id === String(draggedItemData.id) ||
+                         currentHoverFileItemElement.closest(`.file-item[data-id="${draggedItemData.id}"]`)) {
+                          isDraggingIntoSelfOrDescendant = true;
+                          console.warn("Preventing drop: Cannot move folder into itself or descendant.");
+                          // Optionally add a specific class for visual feedback (e.g., 'drag-over-invalid')
+                     }
+                }
+
+                if (!isDraggingIntoSelfOrDescendant) {
+                    const dropIntoFolderThreshold = targetRect.height * 0.25; // Slightly larger threshold for easier targeting
+                    if (event.clientY < targetRect.top + dropIntoFolderThreshold) {
+                        currentHoverFileItemElement.classList.add('drag-over-insert-before');
+                        insertPosition = 'before';
+                    } else if (event.clientY > targetRect.bottom - dropIntoFolderThreshold) {
+                        currentHoverFileItemElement.classList.add('drag-over-insert-after');
+                        insertPosition = 'after';
+                    } else {
+                        currentHoverFileItemElement.classList.add('drag-over-folder');
+                        insertPosition = 'folder';
+                    }
                 } else {
-                    // 检查是否拖入自身或子孙 (简单前端检查)
-                    // TODO: 更可靠的检查依赖后端或前端维护树
-                     targetElement.classList.add('drag-over-folder');
-                     insertPosition = 'folder';
+                     // Reset position if drop is invalid
+                     insertPosition = null;
+                     // Make sure no drop classes are applied
+                     // Don't clear all, just ensure the current target has no drop class
+                     currentHoverFileItemElement.classList.remove('drag-over-folder', 'drag-over-insert-before', 'drag-over-insert-after', 'drag-over-associate');
+                     // Optionally set dropEffect to 'none'?
+                     // event.dataTransfer.dropEffect = 'none'; // May not be universally respected
                 }
             }
-            // Case 3: 拖动到非文件夹/非书目标上（或设定书拖到非书上） -> 仅排序
-            else if (insertPosition !== 'associate') { // 排除已判断为 associate 的情况
+            // Case 3: Dragging onto other items (non-folder, non-book target for association) -> Sorting
+            else { // If it's not a folder and not a setting->book association
                 if (isOverTopHalf) {
-                    targetElement.classList.add('drag-over-insert-before');
+                    currentHoverFileItemElement.classList.add('drag-over-insert-before');
                     insertPosition = 'before';
                 } else {
-                    targetElement.classList.add('drag-over-insert-after');
+                    currentHoverFileItemElement.classList.add('drag-over-insert-after');
                     insertPosition = 'after';
                 }
             }
 
-            // Case 4: 拖到删除按钮
+            // --- Handle Deletion Zone ---
+            // Check if hovering over delete button *after* handling file items
             const deleteBtnTarget = event.target.closest('#delete-btn');
             if (deleteBtnTarget) {
-                 clearDropClasses();
-                 deleteBtnTarget.classList.add('drag-over-delete');
+                 clearDropClasses(); // Clear any file item highlights
+                 if (!deleteBtnTarget.classList.contains('drag-over-delete')) {
+                    deleteBtnTarget.classList.add('drag-over-delete');
+                 }
                  insertPosition = 'delete';
-                 currentDragTargetElement = deleteBtnTarget;
+                 currentDragTargetElement = deleteBtnTarget; // Track that we are over delete button
             } else if (currentDragTargetElement === deleteBtn) {
+                 // If we were over the delete button but aren't anymore
                  deleteBtn.classList.remove('drag-over-delete');
-                 if (targetElement) currentDragTargetElement = targetElement;
-                 else currentDragTargetElement = null;
+                 // If we moved back to a file item, currentDragTargetElement was updated above.
+                 // If we moved to empty space, currentDragTargetElement should become null.
+                 currentDragTargetElement = currentHoverFileItemElement; // Reset to file item or null if not over one
             }
         }
         function handleDragLeave(event, element) {
-            if (element) {
-                element.classList.remove('drag-over-folder', 'drag-over-insert-before', 'drag-over-insert-after', 'drag-over-associate'); // 添加移除 associate
-            }
-            if (event.target.id === 'delete-btn' || element === deleteBtn) {
+            // 'element' here is the LI the listener is attached to
+
+            // Find the element we are actually leaving FROM
+            // Use event.target which is the element the cursor just left
+            const leavingElement = event.target;
+
+            // If leaving the delete button area
+            if (leavingElement.closest('#delete-btn')) {
                  deleteBtn.classList.remove('drag-over-delete');
+            } else {
+                 // If leaving a file item or its internals
+                 const leavingFileItemElement = leavingElement.closest('.file-item');
+                 if (leavingFileItemElement) {
+                    leavingFileItemElement.classList.remove('drag-over-folder', 'drag-over-insert-before', 'drag-over-insert-after', 'drag-over-associate');
+                 }
             }
+
+
+            // Check where the cursor is moving TO
             const relatedTarget = event.relatedTarget;
-            if (!relatedTarget || (!relatedTarget.closest('.file-item') && relatedTarget.id !== 'delete-btn')) {
-                 insertPosition = null;
+            // If moving outside the file list area or to non-interactive elements within it
+            if (!relatedTarget || (!relatedTarget.closest('.file-item') && !relatedTarget.closest('#delete-btn'))) {
+                 insertPosition = null; // Reset insert position if leaving the interactive area
+                 // Consider clearing all classes if needed, but might cause flicker
+                 // clearDropClasses();
+                 currentDragTargetElement = null; // Reset target tracker
             }
         }
-
 
         // 重写 handleDrop 以调用 API
         async function handleDrop(event, targetItemData, targetElement) {
@@ -1989,6 +2134,38 @@
                      if (result) {
                          console.log('Association successful.', result);
                          alert(`《${currentTargetData.name}》已成功关联设定书《${currentDraggedItemData.name}》！`);
+                         // --- UI Update after association --- 
+                         // 1. Add icon and details div to the book item (currentTargetElement)
+                         const bookLi = currentTargetElement;
+                         if (bookLi && bookLi.dataset.type === 'book') {
+                              // Remove existing icon/details if any (shouldn't happen, but safe)
+                              bookLi.querySelector('.associated-setting-icon')?.remove();
+                              bookLi.querySelector('.associated-setting-details')?.remove();
+                              
+                              const iconSpan = bookLi.querySelector('.item-name');
+                              if (iconSpan) {
+                                  const settingIcon = document.createElement('i');
+                                  settingIcon.className = 'fas fa-scroll associated-setting-icon';
+                                  settingIcon.dataset.settingId = currentDraggedItemData.id;
+                                  settingIcon.dataset.settingName = currentDraggedItemData.name;
+                                  settingIcon.title = `关联设定: ${currentDraggedItemData.name}`;
+                                  iconSpan.insertAdjacentElement('afterend', settingIcon);
+                              }
+                              const detailsDiv = document.createElement('div');
+                              detailsDiv.className = 'associated-setting-details';
+                              detailsDiv.style.display = 'none';
+                              bookLi.appendChild(detailsDiv);
+                          }
+                         // 2. Remove the setting book item from the list
+                         const settingLi = document.querySelector(`.file-item[data-id="${currentDraggedItemData.id}"]`);
+                         if (settingLi) {
+                              settingLi.remove();
+                          }
+                         // 3. Optional: Refresh lists for robustness (might cause flicker)
+                         // await reloadItemsForParent(originalParentId === 'root' ? null : originalParentId);
+                         // await reloadItemsForParent(currentTargetData.parent_id || 'root');
+
+                         // 4. Update right sidebar if the currently viewed book was the target
                          if (novelContent.dataset.currentItemId == bookId) {
                              const updatedContent = await getContentAPI(bookId);
                              if (updatedContent && updatedContent.associatedSetting) {
@@ -3103,6 +3280,80 @@
                     generatedSpan.remove();
                      // Trigger input event after deletion
                      novelContent.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            }
+        });
+
+        // --- Event Delegation for Associated Setting Icon and Unlink Button --- 
+        fileList.addEventListener('click', async (event) => {
+            // Handle Setting Icon Click
+            if (event.target.classList.contains('associated-setting-icon')) {
+                const icon = event.target;
+                const bookLi = icon.closest('.file-item');
+                const detailsDiv = bookLi.querySelector('.associated-setting-details');
+                const settingId = icon.dataset.settingId;
+                const settingName = icon.dataset.settingName;
+                const bookId = bookLi.dataset.id;
+
+                if (detailsDiv) {
+                    // Toggle visibility
+                    const isVisible = detailsDiv.style.display !== 'none';
+                    if (isVisible) {
+                        detailsDiv.style.display = 'none';
+                        detailsDiv.innerHTML = ''; // Clear content when hiding
+                    } else {
+                        // Populate and show
+                        detailsDiv.innerHTML = `
+                            <span>${settingName}</span>
+                            <button class="unlink-setting-btn" data-book-id="${bookId}" data-setting-id="${settingId}">取消绑定</button>
+                        `;
+                        detailsDiv.style.display = 'flex'; // Use flex as defined in CSS
+                    }
+                }
+            }
+
+            // Handle Unlink Button Click
+            if (event.target.classList.contains('unlink-setting-btn')) {
+                const button = event.target;
+                const bookId = button.dataset.bookId;
+                const settingId = button.dataset.settingId; // We might not need this if API uses bookId
+                const bookLi = button.closest('.file-item');
+
+                if (!bookId) {
+                    console.error('Unlink button clicked, but bookId is missing.');
+                    return;
+                }
+
+                console.log(`Unlinking setting from book ${bookId}...`);
+                button.textContent = '处理中...';
+                button.disabled = true;
+
+                const result = await disassociateSettingAPI(bookId);
+
+                if (result && result.success && result.setting_item && result.original_parent_id !== undefined) {
+                    console.log('Unlink successful. Setting item to re-render:', result.setting_item);
+                    // 1. Hide details div and remove icon from book
+                    const detailsDiv = bookLi.querySelector('.associated-setting-details');
+                    if (detailsDiv) detailsDiv.style.display = 'none';
+                    bookLi.querySelector('.associated-setting-icon')?.remove();
+
+                    // 2. Refresh the original parent list to show the setting book again
+                    const originalParentId = result.original_parent_id === null ? 'root' : result.original_parent_id;
+                    console.log(`Refreshing parent list: ${originalParentId} to show setting book ${result.setting_item.id}`);
+                    await reloadItemsForParent(originalParentId === 'root' ? null : originalParentId);
+                    
+                    // 3. Update right sidebar if the currently viewed book was the one unlinked
+                    if (novelContent.dataset.currentItemId === bookId) {
+                        clearSettingDisplay(); // Clear the setting display as it's no longer linked
+                        // No need to reload book content here, just clear the setting part
+                    }
+
+                } else {
+                    console.error('Failed to unlink setting or API response format incorrect:', result);
+                    alert('取消关联失败，请稍后重试。');
+                    // Restore button
+                    button.textContent = '取消绑定';
+                    button.disabled = false;
                 }
             }
         });

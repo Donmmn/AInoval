@@ -26,8 +26,24 @@ def get_items():
             return jsonify({'error': 'Invalid parent_id'}), 400
 
     items = query.order_by(FileSystemItem.order).all()
+    
+    # --- 新增：为已关联的 setting 添加 associatedBookInfo --- 
+    # 预先查询所有书籍及其关联的 setting_id
+    book_associations = {book.setting_book_id: {'id': book.id, 'name': book.name} 
+                          for book in FileSystemItem.query.filter(FileSystemItem.item_type == 'book', FileSystemItem.setting_book_id.isnot(None)).all()}
+                          
+    items_data = []
+    for item in items:
+        item_dict = item.to_dict(include_children=False)
+        # 如果是设定书，检查是否在关联字典中
+        if item.item_type == 'setting' and item.id in book_associations:
+            item_dict['associatedBookInfo'] = book_associations[item.id]
+        items_data.append(item_dict)
+    # --- 结束新增 --- 
+
     # 使用 to_dict 转换，但不递归获取 children，避免数据量过大
-    return jsonify([item.to_dict(include_children=False) for item in items])
+    # return jsonify([item.to_dict(include_children=False) for item in items]) # 旧代码
+    return jsonify(items_data)
 
 # --- 创建新项目 ---
 @api_bp.route('/items', methods=['POST'])
@@ -220,6 +236,44 @@ def associate_setting(book_id):
     
     # 返回更新后的 book 信息，可能包含新的关联 ID
     return jsonify(book.to_dict(include_setting_details=True)), 200 # 返回时包含详情
+
+# --- 新增：取消关联设定书 --- 
+@api_bp.route('/items/<int:book_id>/associate_setting', methods=['DELETE'])
+@login_required # 假设需要登录才能取消关联
+def disassociate_setting(book_id):
+    book = FileSystemItem.query.get_or_404(book_id)
+    if book.item_type != 'book':
+        return jsonify({'error': 'Target item is not a book'}), 400
+
+    if book.setting_book_id is None:
+        return jsonify({'message': 'Book is not associated with any setting'}), 200 # 或者 404? 200 可能更好
+
+    # 1. 获取被关联的设定书 ID 和原始父级 ID
+    setting_book_id = book.setting_book_id
+    setting_item = FileSystemItem.query.get(setting_book_id)
+    if not setting_item: # 理论上不应发生，但做个检查
+        # 如果关联的 setting 不存在了，也直接解除关联
+        book.setting_book_id = None
+        db.session.commit()
+        return jsonify({'error': 'Associated setting item not found, association removed'}), 404 
+
+    original_parent_id = setting_item.parent_id # 记录原始父级
+
+    # 2. 解除关联
+    book.setting_book_id = None
+    try:
+        db.session.commit()
+        # 3. 准备返回数据
+        response_data = {
+            'success': True,
+            'setting_item': setting_item.to_dict(include_children=False), # 返回完整的设定书信息
+            'original_parent_id': original_parent_id # 可以是 None 或 int
+        }
+        return jsonify(response_data), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error disassociating setting for book {book_id}: {e}")
+        return jsonify({'error': 'Failed to update association'}), 500
 
 # --- 获取内容 (书籍/设定) ---
 @api_bp.route('/items/<int:item_id>/content', methods=['GET'])
