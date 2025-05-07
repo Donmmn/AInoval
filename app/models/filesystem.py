@@ -1,5 +1,7 @@
 from .. import db  # 从 app 包导入 db
 from sqlalchemy.orm import relationship
+# 假设 User 模型在 .user 中定义，如果不是，需要调整
+# from .user import User # 取消注释并确保路径正确，或者直接使用字符串 'User'
 
 class FileSystemItem(db.Model):
     __tablename__ = 'filesystem_items'
@@ -8,6 +10,11 @@ class FileSystemItem(db.Model):
     name = db.Column(db.String(255), nullable=False)
     item_type = db.Column(db.String(50), nullable=False) # 'folder', 'book', 'setting'
     parent_id = db.Column(db.Integer, db.ForeignKey('filesystem_items.id'), nullable=True)
+    
+    # 新增：用户ID，指向 User 表的 id 字段
+    # 假设 User 模型的表名为 'user'
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    
     order = db.Column(db.Integer, nullable=False, default=0) # 用于同级排序
     content = db.Column(db.Text, nullable=True) # 书籍内容
     settings_data = db.Column(db.JSON, nullable=True) # 设定书内容 (使用 JSON)
@@ -34,6 +41,10 @@ class FileSystemItem(db.Model):
         cascade='all, delete-orphan'
     )
 
+    # 新增：与 User 模型的关系
+    # 假设 User 模型类名为 'User'
+    user = db.relationship('User', backref=db.backref('filesystem_items', lazy='dynamic'))
+
     def to_dict(self, include_children=False, include_setting_details=False):
         """将模型对象转换为字典，方便 API 返回。"""
         data = {
@@ -41,6 +52,7 @@ class FileSystemItem(db.Model):
             'name': self.name,
             'type': self.item_type,
             'parentId': self.parent_id,
+            'userId': self.user_id, # 添加 userId
             'order': self.order,
             # 根据类型决定是否包含 content/settings
             # 'content': self.content if self.item_type == 'book' else None,

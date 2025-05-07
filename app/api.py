@@ -13,24 +13,33 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 # --- 获取项目列表 ---
 @api_bp.route('/items', methods=['GET'])
+@login_required
 def get_items():
-    parent_id = request.args.get('parent_id')
-    # 查询数据库
-    query = FileSystemItem.query
-    if parent_id == 'root' or parent_id is None:
+    parent_id_str = request.args.get('parent_id')
+    
+    # 基础查询，限定当前用户
+    query = FileSystemItem.query.filter_by(user_id=current_user.id)
+
+    if parent_id_str == 'root' or parent_id_str is None:
         query = query.filter(FileSystemItem.parent_id.is_(None))
     else:
         try:
-            query = query.filter(FileSystemItem.parent_id == int(parent_id))
+            parent_id = int(parent_id_str)
+            # 确保父文件夹也属于当前用户
+            parent_item = FileSystemItem.query.filter_by(id=parent_id, user_id=current_user.id).first()
+            if not parent_item:
+                # 如果父文件夹不属于当前用户或不存在，则不返回任何子项
+                return jsonify([]), 200
+            query = query.filter(FileSystemItem.parent_id == parent_id)
         except ValueError:
             return jsonify({'error': 'Invalid parent_id'}), 400
 
     items = query.order_by(FileSystemItem.order).all()
-    # 使用 to_dict 转换，但不递归获取 children，避免数据量过大
     return jsonify([item.to_dict(include_children=False) for item in items])
 
 # --- 创建新项目 ---
 @api_bp.route('/items', methods=['POST'])
+@login_required
 def create_item():
     data = request.get_json()
     if not data or 'name' not in data or 'type' not in data:
@@ -47,7 +56,7 @@ def create_item():
         try:
             parent_id = int(parent_id)
             # 检查父项是否存在且为文件夹
-            parent_item = FileSystemItem.query.get(parent_id)
+            parent_item = FileSystemItem.query.filter_by(id=parent_id, user_id=current_user.id).first()
             if not parent_item or parent_item.item_type != 'folder':
                  return jsonify({'error': 'Invalid parent folder'}), 400
         except ValueError:
@@ -63,6 +72,7 @@ def create_item():
         name=data['name'],
         item_type=item_type,
         parent_id=parent_id,
+        user_id=current_user.id,
         order=new_order,
         settings_data=[] if item_type == 'setting' else None, # 设定书初始化为空列表
         collapsed=True if item_type == 'folder' else None
@@ -75,8 +85,11 @@ def create_item():
 
 # --- 删除项目 ---
 @api_bp.route('/items/<int:item_id>', methods=['DELETE'])
+@login_required
 def delete_item(item_id):
-    item = FileSystemItem.query.get_or_404(item_id)
+    item = FileSystemItem.query.filter_by(id=item_id, user_id=current_user.id).first_or_404(
+        description=f'Item {item_id} not found or you do not have permission.'
+    )
 
     # 由于模型中设置了 cascade='all, delete-orphan'，SQLAlchemy 会自动处理子项删除
     db.session.delete(item)
@@ -88,8 +101,11 @@ def delete_item(item_id):
 
 # --- 重命名项目 ---
 @api_bp.route('/items/<int:item_id>/rename', methods=['PUT'])
+@login_required
 def rename_item(item_id):
-    item = FileSystemItem.query.get_or_404(item_id)
+    item = FileSystemItem.query.filter_by(id=item_id, user_id=current_user.id).first_or_404(
+        description=f'Item {item_id} not found or you do not have permission.'
+    )
     data = request.get_json()
     if not data or 'name' not in data or not data['name'].strip():
         return jsonify({'error': 'New name is required'}), 400
@@ -101,8 +117,11 @@ def rename_item(item_id):
 
 # --- 移动项目 (处理排序和父级变更) ---
 @api_bp.route('/items/<int:item_id>/move', methods=['PUT'])
+@login_required
 def move_item(item_id):
-    item_to_move = FileSystemItem.query.get_or_404(item_id)
+    item_to_move = FileSystemItem.query.filter_by(id=item_id, user_id=current_user.id).first_or_404(
+        description=f'Item {item_id} to move not found or you do not have permission.'
+    )
     data = request.get_json()
 
     target_parent_id = data.get('targetParentId') # 可能为 null (根目录) 或 数字
@@ -114,9 +133,9 @@ def move_item(item_id):
         try:
             new_parent_id = int(target_parent_id)
             # 检查目标父级是否存在且为文件夹
-            target_parent = FileSystemItem.query.get(new_parent_id)
-            if not target_parent or target_parent.item_type != 'folder':
-                return jsonify({'error': 'Invalid target parent folder'}), 400
+            target_parent = FileSystemItem.query.filter_by(id=new_parent_id, user_id=current_user.id, item_type='folder').first()
+            if not target_parent:
+                return jsonify({'error': 'Target parent folder not found or not accessible'}), 400
             # 检查是否移动到自身或子文件夹下
             temp_parent = target_parent
             while temp_parent:
@@ -136,7 +155,7 @@ def move_item(item_id):
     if item_to_move.parent_id != new_parent_id:
          siblings = siblings_query.order_by(FileSystemItem.order).all()
     else: # 父级未变，排除自己后再排序
-         siblings = siblings_query.filter(FileSystemItem.id != item_id).order_by(FileSystemItem.order).all()
+         siblings = siblings_query.filter(FileSystemItem.id != item_to_move.id).order_by(FileSystemItem.order).all()
 
     # 3. 确定插入位置
     insert_index = len(siblings) # 默认插入到最后
@@ -191,8 +210,11 @@ def move_item(item_id):
 
 # --- 新增：关联设定书 --- 
 @api_bp.route('/items/<int:book_id>/associate_setting', methods=['POST'])
+@login_required
 def associate_setting(book_id):
-    book = FileSystemItem.query.get_or_404(book_id)
+    book = FileSystemItem.query.filter_by(id=book_id, user_id=current_user.id, item_type='book').first_or_404(
+        description=f'Book {book_id} not found or you do not have permission.'
+    )
     if book.item_type != 'book':
         return jsonify({'error': 'Target item is not a book'}), 400
     
@@ -206,7 +228,9 @@ def associate_setting(book_id):
     if setting_book_id is not None:
         try:
             setting_book_id = int(setting_book_id)
-            setting_book = FileSystemItem.query.get(setting_book_id)
+            setting_book = FileSystemItem.query.filter_by(id=setting_book_id, user_id=current_user.id, item_type='setting').first_or_404(
+                description=f'Setting book {setting_book_id} not found or you do not have permission.'
+            )
             if not setting_book or setting_book.item_type != 'setting':
                  return jsonify({'error': 'Invalid setting book'}), 400
         except (ValueError, TypeError): # 处理非整数或 None 的情况
@@ -223,47 +247,59 @@ def associate_setting(book_id):
 
 # --- 获取内容 (书籍/设定) ---
 @api_bp.route('/items/<int:item_id>/content', methods=['GET'])
+@login_required
 def get_content(item_id):
-    item = FileSystemItem.query.get_or_404(item_id)
+    item = FileSystemItem.query.filter_by(id=item_id, user_id=current_user.id).first_or_404(
+        description=f'Item {item_id} not found or you do not have permission.'
+    )
     if item.item_type == 'book':
-        # 修改：同时返回关联的设定书信息（如果存在）
-        response_data = {
-            'id': item.id,
-            'type': 'book',
-            'name': item.name,
-            'content': item.content or ''
-        }
-        if item.associated_setting:
-            # 确保只返回关联设定书的基本信息，避免循环引用或过多数据
-            response_data['associatedSetting'] = {
+        # 获取关联的设定书信息（如果存在）
+        associated_setting_info = None
+        if item.associated_setting: # associated_setting 是关系对象
+            associated_setting_info = {
                 'id': item.associated_setting.id,
                 'name': item.associated_setting.name,
-                'type': 'setting'
-                # 不在此处返回 settings_data
+                'type': item.associated_setting.item_type
             }
-            # response_data['associatedSetting'] = item.associated_setting.to_dict() # 旧方式可能数据过多
-        return jsonify(response_data)
+        return jsonify({
+            'content': item.content or '', 
+            'associatedSetting': associated_setting_info
+        })
     elif item.item_type == 'setting':
-        # --- 新增逻辑：查找关联此设定的书籍 ---
-        associated_book = FileSystemItem.query.filter_by(item_type='book', setting_book_id=item_id).first()
-        response_data = item.to_dict() # 获取设定书本身的信息
-        if associated_book:
-            # 如果找到了关联的书籍，添加基本信息到响应中
-            response_data['associatedBookInfo'] = {
-                'id': associated_book.id,
-                'name': associated_book.name,
-                'type': 'book'
+        # 检查此设定书是否关联了书籍，如果是，则返回书籍信息
+        # 注意：'associated_books' 是 FileSystemItem.associated_setting 的 backref
+        # 如果一个设定书可能关联多个书籍（虽然当前模型是一对一），这里需要调整
+        associated_book_info = None
+        # 假设一个设定书只被一个书关联 (如果 FileSystemItem.associated_setting 的 backref 是 uselist=False)
+        # 如果不是， associated_books 会是一个列表
+        # 暂时简化：如果有关联，取第一个（或不取，取决于业务逻辑）
+        # 这个 backref 可能需要更明确的定义或使用方式
+        # 让我们先返回设定书自身的内容
+        if item.associated_books: # 这是一个列表
+            first_associated_book = item.associated_books[0] # 取第一个为例
+            associated_book_info = {
+                'id': first_associated_book.id,
+                'name': first_associated_book.name,
+                'type': first_associated_book.item_type
             }
-        return jsonify(response_data)
-        # return jsonify(item.to_dict()) # 旧方式
-        # return jsonify({'id': item.id, 'type': 'setting', 'name': item.name, 'settings': item.settings_data or []})
+
+        return jsonify({
+            'id': item.id, 
+            'name': item.name, 
+            'type': item.item_type, 
+            'settings': item.settings_data or [],
+            'associatedBookInfo': associated_book_info # 新增字段，用于前端判断
+        })
     else:
         return jsonify({'error': 'Item is not a book or setting'}), 400
 
 # --- 更新内容 (书籍/设定) ---
 @api_bp.route('/items/<int:item_id>/content', methods=['PUT'])
+@login_required
 def update_content(item_id):
-    item = FileSystemItem.query.get_or_404(item_id)
+    item = FileSystemItem.query.filter_by(id=item_id, user_id=current_user.id).first_or_404(
+        description=f'Item {item_id} not found or you do not have permission for update.'
+    )
     data = request.get_json()
     if not data:
          return jsonify({'error': 'No data provided'}), 400
@@ -287,8 +323,11 @@ def update_content(item_id):
 
 # --- （可选）更新文件夹折叠状态 ---
 @api_bp.route('/items/<int:item_id>/toggle', methods=['PUT'])
+@login_required
 def toggle_folder(item_id):
-    item = FileSystemItem.query.get_or_404(item_id)
+    item = FileSystemItem.query.filter_by(id=item_id, user_id=current_user.id).first_or_404(
+        description=f'Folder {item_id} not found or you do not have permission.'
+    )
     if item.item_type != 'folder':
          return jsonify({'error': 'Not a folder'}), 400
     
@@ -375,6 +414,7 @@ def grant_points_to_user(user_id):
 def get_unassociated_books():
     try:
         unassociated_books = FileSystemItem.query.filter(
+            FileSystemItem.user_id == current_user.id,
             FileSystemItem.item_type == 'book',
             FileSystemItem.setting_book_id.is_(None) # 查找 setting_book_id 为 NULL 的书籍
         ).order_by(FileSystemItem.name).all()

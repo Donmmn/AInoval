@@ -33,4 +33,4 @@ def clear_users():
 if __name__ == '__main__':
     # 注意：运行 app.run() 会阻塞，无法直接在此处接收 'clr' 输入。
     # clr 命令需要通过 'flask clr' 在单独的终端中运行。
-    app.run(debug=True) 
+    app.run(host='0.0.0.0', debug=True) 

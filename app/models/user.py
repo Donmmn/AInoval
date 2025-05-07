@@ -13,9 +13,9 @@ class User(UserMixin, db.Model):
     auto_save_on_navigate = db.Column(db.Boolean, default=True, nullable=False)
     points = db.Column(db.Integer, default=0, nullable=False)
     # --- 新增字段：存储用户启用的 AI 服务配置 ID ---
-    active_ai_service_id = db.Column(db.Integer, db.ForeignKey('ai_service.id'), nullable=True)
+    active_ai_service_id = db.Column(db.Integer, db.ForeignKey('ai_service.id', use_alter=True, name='fk_user_active_ai_service'), nullable=True)
     # --- 可选：添加关系以方便访问活动配置对象 (如果需要) ---
-    # active_ai_service = db.relationship('AIService', foreign_keys=[active_ai_service_id])
+    active_ai_service = db.relationship('AIService', foreign_keys=[active_ai_service_id], post_update=True)
 
     # 与 Group 的多对多关系
     groups = db.relationship('Group', 

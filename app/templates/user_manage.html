@@ -1521,10 +1521,202 @@
             const btnOpenCreateInvModal = document.getElementById('btn-open-create-invitation-modal');
             const createInvModal = document.getElementById('create-invitation-modal');
             const closeInvModalBtn = createInvModal ? createInvModal.querySelector('.close-modal-btn') : null;
-            // ... Add other invitation modal listeners here if they were inside the previous DOMContentLoaded ...
-            if (btnOpenCreateInvModal) { /* ... */ }
-            if (closeInvModalBtn) { /* ... */ }
-            // ... etc ...
+            const formCreateInvitation = document.getElementById('form-create-invitation');
+            const invitationCodeListDiv = document.getElementById('invitation-code-list');
+            const modalFlashMessagesDiv = document.getElementById('modal-flash-messages'); // Ensure this div exists in create-invitation-modal
+            const invIsRandomCheckbox = document.getElementById('inv-is-random');
+            const invCodeManualGroup = document.getElementById('inv-code-manual-group');
+            const invCodeInput = document.getElementById('inv-code');
+            const btnDeleteInvalidCodes = document.getElementById('btn-delete-invalid-codes');
+
+            function showModalFlash(message, type = 'error', modalFlashDiv = modalFlashMessagesDiv) {
+                if (!modalFlashDiv) return;
+                const bgColor = type === 'error' ? '#f8d7da' : (type === 'success' ? '#d1e7dd' : '#fff3cd');
+                const textColor = type === 'error' ? '#842029' : (type === 'success' ? '#0f5132' : '#664d03');
+                modalFlashDiv.innerHTML = `<p style="padding: 10px; border-radius: 4px; background-color: ${bgColor}; color: ${textColor}; border: 1px solid ${textColor};">${message}</p>`;
+                setTimeout(() => { modalFlashDiv.innerHTML = ''; }, 5000);
+            }
+
+            async function loadInvitationCodes() {
+                if (!invitationCodeListDiv) return;
+                invitationCodeListDiv.innerHTML = '<p>正在加载邀请码...</p>';
+                // Ensure userManageApiCall is defined and accessible in this scope
+                const responseData = await userManageApiCall('/user/invitations'); 
+
+                if (responseData && responseData.invitations && Array.isArray(responseData.invitations)) {
+                    const codesArray = responseData.invitations;
+                    if (codesArray.length === 0) {
+                        invitationCodeListDiv.innerHTML = '<p>暂无邀请码。</p>';
+                        return;
+                    }
+                    let tableHtml = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>邀请码</th>
+                                    <th>状态</th>
+                                    <th>最大使用次数</th>
+                                    <th>已使用次数</th>
+                                    <th>过期时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+                    codesArray.forEach(code => {
+                        const expiresAt = code.expires_at ? new Date(code.expires_at).toLocaleString() : '永不';
+                        // const createdAt = new Date(code.created_at).toLocaleString(); // Removed as created_at is not in API response
+                        const isValid = code.is_valid; 
+                        const statusText = isValid ? '<span style="color: green;">有效</span>' : '<span style="color: red;">失效</span>';
+                        const maxUsesText = code.max_uses === 0 ? '无限' : code.max_uses;
+
+                        tableHtml += `
+                            <tr>
+                                <td><strong>${code.code}</strong></td>
+                                <td>${statusText}</td>
+                                <td>${maxUsesText}</td>
+                                <td>${code.times_used}</td>
+                                <td>${expiresAt}</td>
+                                <td>
+                                    <button class="action-btn delete-btn btn-delete-inv-code" data-code-id="${code.id}" title="删除此邀请码">
+                                        <i class="fas fa-trash"></i> 删除
+                                    </button>
+                                </td>
+                            </tr>`;
+                    });
+                    tableHtml += '</tbody></table>';
+                    invitationCodeListDiv.innerHTML = tableHtml;
+
+                    document.querySelectorAll('.btn-delete-inv-code').forEach(button => {
+                        button.addEventListener('click', handleDeleteInvitationCode);
+                    });
+                } else {
+                    invitationCodeListDiv.innerHTML = '<p style="color:red;">加载邀请码失败。请检查API是否正常或稍后再试。</p>';
+                }
+            }
+
+            async function handleDeleteInvitationCode(event) {
+                const button = event.currentTarget;
+                const codeId = button.dataset.codeId;
+                if (!confirm(`确定要删除此邀请码 (ID: ${codeId}) 吗？`)) return;
+
+                button.disabled = true;
+                const result = await userManageApiCall(`/user/invitations/${codeId}`, { method: 'DELETE' }); 
+                if (result && (result.success || result.message || response.status === 204)) {
+                    alert(result.message || '邀请码已删除。');
+                    loadInvitationCodes(); 
+                }
+                button.disabled = false; 
+            }
+
+            if (btnOpenCreateInvModal) {
+                btnOpenCreateInvModal.addEventListener('click', () => {
+                    if (createInvModal) {
+                        if (formCreateInvitation) formCreateInvitation.reset();
+                        if(invCodeManualGroup) invCodeManualGroup.style.display = 'block';
+                        if(invCodeInput) invCodeInput.disabled = false;
+                        if(invIsRandomCheckbox) invIsRandomCheckbox.checked = false;
+                        if(modalFlashMessagesDiv) modalFlashMessagesDiv.innerHTML = '';
+                        createInvModal.style.display = 'block';
+                    }
+                });
+            }
+
+            if (closeInvModalBtn) {
+                closeInvModalBtn.addEventListener('click', () => {
+                    if (createInvModal) createInvModal.style.display = 'none';
+                });
+            }
+            
+            // Note: The global window click listener for closing modals is already present later in your script.
+            // Ensure it correctly handles createInvModal.
+
+            if (invIsRandomCheckbox && invCodeManualGroup && invCodeInput) {
+                invIsRandomCheckbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        invCodeManualGroup.style.display = 'none';
+                        invCodeInput.value = ''; 
+                        invCodeInput.disabled = true;
+                    } else {
+                        invCodeManualGroup.style.display = 'block';
+                        invCodeInput.disabled = false;
+                    }
+                });
+            }
+
+            if (formCreateInvitation) {
+                formCreateInvitation.addEventListener('submit', async function(event) {
+                    event.preventDefault();
+                    const submitButton = formCreateInvitation.querySelector('button[type="submit"]');
+                    submitButton.disabled = true;
+                    submitButton.textContent = '生成中...';
+
+                    const formData = new FormData(formCreateInvitation);
+                    const payload = {
+                        is_random: formData.get('is_random') === 'on',
+                        code: formData.get('is_random') === 'on' ? null : formData.get('code'),
+                        expires_in_hours: formData.get('expires_in_hours') ? parseInt(formData.get('expires_in_hours')) : null,
+                        max_uses: formData.get('max_uses') ? parseInt(formData.get('max_uses')) : null
+                    };
+                    
+                    if (!payload.is_random && (!payload.code || payload.code.trim() === '')) {
+                        showModalFlash('自定义邀请码不能为空。');
+                        submitButton.disabled = false;
+                        submitButton.textContent = '确认生成';
+                        return;
+                    }
+
+                    const result = await userManageApiCall('/user/invitations', { 
+                        method: 'POST',
+                        body: payload
+                    });
+
+                    if (result && result.id) { 
+                        showModalFlash(`邀请码 "${result.code}" 创建成功!`, 'success'); // This message might be visible very briefly
+                        
+                        if (createInvModal) {
+                            createInvModal.style.display = 'none'; // Close modal immediately
+                        }
+                        loadInvitationCodes(); // Refresh list
+                        
+                        // Re-enable and reset button text immediately after actions
+                        submitButton.disabled = false;
+                        submitButton.textContent = '确认生成';
+                    } else if (result && result.error) {
+                         showModalFlash(result.error); 
+                         // Re-enable and reset button text on error
+                         submitButton.disabled = false;
+                         submitButton.textContent = '确认生成';
+                    } else {
+                        // Fallback for unexpected responses or if result is null/undefined from apiCall
+                        showModalFlash(result ? (result.message || '操作完成但响应未知。') : '创建失败，请重试。');
+                        submitButton.disabled = false;
+                        submitButton.textContent = '确认生成';
+                    }
+                });
+            }
+            
+            if (btnDeleteInvalidCodes) {
+                btnDeleteInvalidCodes.addEventListener('click', async function() {
+                    if (!confirm('确定要删除所有已失效的邀请码吗？此操作不可撤销。')) return;
+                    
+                    this.disabled = true;
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 删除中...';
+
+                    const result = await userManageApiCall('/user/invitations/cleanup', { method: 'DELETE' }); 
+
+                    if (result && (result.success !== false)) { // Check for non-failure
+                        alert(result.message || `成功删除了 ${result.deleted_count === undefined ? '部分或所有' : result.deleted_count} 个失效邀请码。`);
+                        loadInvitationCodes();
+                    }
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-trash-alt"></i> 删除所有失效邀请码';
+                });
+            }
+
+            // Initial load of invitation codes
+            if (document.getElementById('invitation-code-section')) {
+                 loadInvitationCodes();
+            }
 
             // Subscription Panel Toggle Logic (Simplified)
             const panelToggleHandle = subscriptionPanel ? subscriptionPanel.querySelector('.panel-toggle-handle') : null;
