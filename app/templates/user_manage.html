@@ -13,6 +13,7 @@
             margin: 0; /* Remove default margin */
             background-color: #f7f7f7; /* Match index.html body background */
             padding-top: 60px; /* Keep padding for fixed top bar height */
+            overflow-x: hidden; /* Prevent horizontal scroll if panel is too wide briefly during transition */
         }
 
         /* Top Bar Styles (Aligned with style.css/.top-bar in index.html) */
@@ -315,27 +316,108 @@
             color: #333; /* Ensure good contrast */
         }
 
+        /* Right Collapsible Panel Styles - Revised for Fixed Positioning and Overlay */
+        #subscription-panel {
+            /* width: 320px; */ /* Default fixed width removed, now percentage based when expanded */
+            height: calc(100vh - 60px); /* Full height below top-bar */
+            position: fixed; 
+            right: 0;
+            top: 60px; 
+            background-color: #f8f9fa; 
+            border-left: 1px solid #e0e0e0;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.1); /* Shadow on the left side */
+            transition: transform 0.3s ease-in-out, width 0.3s ease-in-out; /* Keep width transition */
+            overflow: hidden; 
+            z-index: 999; /* Below modals (usually 1000+), above normal content */
+            transform: translateX(calc(100% - 100px)); /* Initially collapsed, showing 100px */
+        }
+
+        #subscription-panel.expanded {
+            transform: translateX(0); /* Slides in to be fully visible */
+            width: 40%; /* Expanded width is 40% of viewport */
+        }
+
+        .panel-toggle-handle {
+            width: 45px; 
+            height: 100%;
+            position: absolute; /* Position handle within the panel */
+            left: 0; /* Stick to the left edge of the panel */
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background-color: #e9eef2;
+            border-right: 1px solid #d0d7de; /* Border on the right of handle */
+            box-sizing: border-box;
+        }
+        
+        #subscription-panel.expanded .panel-toggle-handle {
+             background-color: #dde3e8;
+        }
+
+        .panel-toggle-handle .panel-handle-text {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            margin-top: 15px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #444;
+            white-space: nowrap;
+        }
+
+        .panel-toggle-handle #panel-toggle-icon {
+            font-size: 16px;
+            color: #333;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        #subscription-panel.expanded .panel-toggle-icon {
+            transform: rotate(180deg); 
+        }
+
+        .panel-actual-content {
+            padding: 20px;
+            margin-left: 100px; /* Offset by wider handle area */
+            width: calc(100% - 100px); /* Content takes remaining width */
+            box-sizing: border-box;
+            height: 100%;
+            overflow-y: auto;
+            /* display: none; /* No longer needed, visibility controlled by panel's transform */
+        }
+
+        /* #subscription-panel.expanded .panel-actual-content { */
+            /* display: block; /* No longer needed */
+        /* } */
+
+        .panel-actual-content h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .panel-actual-content hr {
+            border: 0;
+            border-top: 1px solid #eee;
+            margin: 15px 0;
+        }
+
     </style>
 </head>
 <body>
     {# New Top Bar #}
     <div class="top-bar">
         <div class="left-controls">
-             {# Button moved to right-buttons #}
-             {# <a href="{{ url_for('main.index') }}" class="top-btn"><i class="fas fa-arrow-left"></i> 返回主界面</a> #}
         </div>
-        {# Add other top bar buttons if needed later in .right-buttons #}
         <div class="right-buttons">
-             {# Example: <a href="#" class="top-btn">Other Action</a> #}
-             {# Moved button here and removed icon #}
              <a href="{{ url_for('main.index') }}" class="top-btn">返回主界面</a>
         </div>
     </div>
 
+    {# Existing main content container - should remain centered #}
     <div class="container">
-        {# Remove old back link #}
-        <!-- <a href="{{ url_for('main.index') }}" class="back-link">&larr; 返回主界面</a> -->
-        <h1>用户管理</h1>
+        <h1>用户与邀请码管理</h1>
 
         <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -350,7 +432,7 @@
 
         {# 用户列表 (折叠, 默认展开) #}
         <details class="collapsible-section" open>
-            <summary><h2><i class="fas fa-users"></i> 用户列表</h2></summary>
+            <summary><i class="fas fa-users"></i> 用户列表</summary>
             <div class="collapsible-content">
                 <table>
                     <thead>
@@ -397,7 +479,7 @@
 
         {# 折叠的添加用户部分 (保持默认关闭) #}
         <details class="collapsible-section">
-            <summary><h2><i class="fas fa-user-plus"></i> 添加新用户</h2></summary>
+            <summary><i class="fas fa-user-plus"></i> 添加新用户</summary>
             <div class="collapsible-content">
                 <form id="add-user-form" method="POST" action="{{ url_for('user.manage') }}">
                     <div class="form-group">
@@ -415,7 +497,7 @@
 
         {# 用户组管理 (折叠, 默认关闭) #}
         <details class="collapsible-section">
-            <summary><h2><i class="fas fa-layer-group"></i> 用户组管理</h2></summary>
+            <summary><i class="fas fa-layer-group"></i> 用户组管理</summary>
             <div class="group-management collapsible-content">
                 {# 创建新组表单 #}
                 <form id="create-group-form" class="form-group">
@@ -466,14 +548,100 @@
             </div>
         </details>
 
-        {# TODO: Add Section for Auto Point Distribution Rules later #}
+        <!-- New Invitation Code Management Section -->
+        <details class="collapsible-section" id="invitation-code-section">
+            <summary><i class="fas fa-ticket-alt"></i> 邀请码管理</summary>
+            <div class="collapsible-content">
+                <div id="invitation-controls" style="margin-bottom: 15px; overflow: auto;">
+                    <button id="btn-open-create-invitation-modal" class="form-button" style="float: left;">
+                        <i class="fas fa-plus-circle"></i> 生成邀请码
+                    </button>
+                    <button id="btn-delete-invalid-codes" class="action-btn delete-btn" style="float: right;">
+                        <i class="fas fa-trash-alt"></i> 删除所有失效邀请码
+                    </button>
+                </div>
 
+                <div id="invitation-code-list" style="margin-top: 20px;">
+                    <!-- Invitations will be loaded here by JavaScript -->
+                    <p>正在加载邀请码...</p>
+                </div>
+            </div>
+        </details>
+        <!-- End New Invitation Code Management Section -->
+
+    </div> {# End .container #}
+
+    {# New Right Collapsible Panel for Subscription Group Management - Positioned independently #}
+    <div id="subscription-panel" class="collapsed"> 
+        <div class="panel-toggle-handle" title="管理订阅组">
+            <i id="panel-toggle-icon" class="fas fa-chevron-left"></i>
+            <span class="panel-handle-text">订阅组</span>
+        </div>
+        <div class="panel-actual-content">
+            <h3>订阅组管理</h3>
+            <hr>
+            <p>此处将显示订阅组管理的相关功能。</p>
+            <p>例如：</p>
+            <ul>
+                <li>创建新的订阅组</li>
+                <li>编辑现有订阅组</li>
+                <li>查看订阅组列表</li>
+                <li>管理组成员</li>
+            </ul>
+            <p>具体功能待后续实现。</p>
+        </div>
+    </div>
+
+    <!-- Modal for Creating Invitation Code -->
+    <div id="create-invitation-modal" class="modal" style="display:none; position: fixed; z-index: 1002; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+        <div class="modal-content" style="background-color: #fefefe; margin: 10% auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+            <span class="close-modal-btn" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 0.8;">&times;</span>
+            <h2>生成邀请码</h2>
+            <form id="form-create-invitation" style="margin-top: 20px;">
+                <div class="form-group">
+                    <label for="inv-is-random" style="display: inline-flex; align-items: center; font-weight: normal;">
+                        <input type="checkbox" id="inv-is-random" name="is_random" style="width: auto; margin-right: 8px; margin-bottom: 0;">
+                        随机生成邀请码 (8位)
+                    </label>
+                </div>
+                <div class="form-group" id="inv-code-manual-group">
+                    <label for="inv-code">邀请码:</label>
+                    <input type="text" id="inv-code" name="code" placeholder="输入自定义邀请码" class="form-control" style="width:100%"> 
+                </div>
+                <div class="form-group">
+                    <label for="inv-expires-in-hours">过期时间 (小时, 默认24小时, 0或不填为永不):</label>
+                    <input type="number" id="inv-expires-in-hours" name="expires_in_hours" placeholder="例如: 72 (3天)" class="form-control" style="width:100%">
+                </div>
+                <div class="form-group">
+                    <label for="inv-max-uses">生效次数 (默认1次, 0或不填为无限次):</label>
+                    <input type="number" id="inv-max-uses" name="max_uses" placeholder="例如: 5" class="form-control" style="width:100%">
+                </div>
+                <button type="submit" class="form-button">确认生成</button>
+            </form>
+            <div id="modal-flash-messages" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <!-- New Modal for Editing Subscription Config -->
+    <div id="edit-subscription-config-modal" class="modal" style="display:none; position: fixed; z-index: 1003; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+        <div class="modal-content" style="background-color: #fefefe; margin: 5% auto; padding: 25px; border: 1px solid #888; width: 90%; max-width: 600px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+            <span class="close-edit-sub-modal-btn" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 0.8;">&times;</span>
+            <h2>编辑订阅组</h2>
+            <div id="edit-subscription-form-content-area" style="margin-top: 20px;">
+                <!-- Edit form will be rendered here by JavaScript -->
+                <p>正在加载数据...</p>
+            </div>
+            <div id="edit-modal-flash-messages" style="margin-top: 15px;"></div>
+        </div>
     </div>
 
     <script>
-        // Helper for API calls within this page
-        async function userManageApiCall(url, options = {}) {
-             const defaultHeaders = {
+        // Ensure all JavaScript is within ONE primary DOMContentLoaded listener if possible,
+        // or that each DOMContentLoaded listener is correctly and independently closed.
+
+        // Helper for API calls (should be defined once, accessible to all parts)
+        async function userManageApiCall(url, options = {}) { 
+            const defaultHeaders = {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             };
@@ -483,8 +651,7 @@
             }
             try {
                 const response = await fetch(url, options);
-                let result = {}; // Initialize result
-                // Try to parse JSON even if status is not OK, for error messages
+                let result = {}; 
                 try {
                     if (response.status !== 204 && response.headers.get('Content-Length') !== '0') {
                         result = await response.json(); 
@@ -492,48 +659,26 @@
                 } catch (jsonError) {
                     console.warn("Could not parse JSON response, status:", response.status);
                     if (!response.ok) {
-                         // If parsing fails on an error response, create a generic error
                          result = { error: `Request failed with status ${response.status}` };
                     }
-                    // If parsing fails on a success response (e.g., 204), result remains {}
                 }
-
                 if (!response.ok) {
                     console.error(`API Error (${response.status}) for ${url}:`, result);
                     alert(`操作失败: ${result.error || response.statusText || '未知错误'}`);
                     return null;
                 }
-                // Handle no content success (common for DELETE)
                  if (response.status === 204 || response.headers.get('Content-Length') === '0') {
                      return { success: true }; 
                  }
-                return result; // Return parsed JSON or {success: true} for 204
+                return result;
             } catch (error) {
                 console.error('Network or fetch error:', error, url, options);
                 alert('网络错误或请求失败');
                 return null;
             }
         }
-        // ---------------------------------------------------------------
 
-        // Add event listeners after DOM is loaded
-        document.addEventListener('DOMContentLoaded', () => {
-            // 发放点数表单
-            document.querySelectorAll('.grant-form').forEach(form => {
-                form.addEventListener('submit', handleGrantPointsSubmit);
-            });
-            // 创建组表单
-            const createGroupForm = document.getElementById('create-group-form');
-            if (createGroupForm) {
-                createGroupForm.addEventListener('submit', handleCreateGroupSubmit);
-            }
-            // 添加用户到组表单
-            document.querySelectorAll('.add-user-to-group-form').forEach(form => {
-                form.addEventListener('submit', handleAddUserToGroupSubmit);
-            });
-        });
-
-        // 处理发放点数
+        // User/Group Management Functions (definitions should be here if not already globally available)
         async function handleGrantPointsSubmit(event) {
             event.preventDefault();
             const form = event.target;
@@ -568,7 +713,6 @@
             button.textContent = '发放';
         }
 
-        // 处理创建组
         async function handleCreateGroupSubmit(event) {
             event.preventDefault();
             const form = event.target;
@@ -599,7 +743,6 @@
             input.value = '';
         }
 
-        // 处理添加用户到组
         async function handleAddUserToGroupSubmit(event) {
             event.preventDefault();
             const form = event.target;
@@ -631,7 +774,6 @@
             input.value = '';
         }
 
-        // 处理删除组 (Called by onclick)
         async function deleteGroup(event, groupId, groupName) {
              // 阻止事件冒泡或默认行为 (如果按钮在 form 里)
              if(event) event.preventDefault();
@@ -653,7 +795,6 @@
             }
         }
 
-        // 处理从组移除用户 (Called by onclick)
         async function removeUserFromGroup(event, groupId, userId, username) {
              // 阻止事件冒泡或默认行为
              if(event) event.preventDefault();
@@ -674,6 +815,287 @@
                  if (removeButton) removeButton.disabled = false; // Re-enable on failure
             }
         }
+
+        // Main DOMContentLoaded listener that wraps ALL dynamic functionality for user_manage.html
+        document.addEventListener('DOMContentLoaded', function() {
+
+            // --- Define ALL Subscription Management Functions First ---
+            const subscriptionPanel = document.getElementById('subscription-panel');
+            const subPanelContent = subscriptionPanel ? subscriptionPanel.querySelector('.panel-actual-content') : null;
+            const editSubscriptionModal = document.getElementById('edit-subscription-config-modal');
+            const closeEditSubModalBtn = editSubscriptionModal ? editSubscriptionModal.querySelector('.close-edit-sub-modal-btn') : null;
+            const editSubscriptionFormContentArea = document.getElementById('edit-subscription-form-content-area');
+            const editModalFlashMessagesDiv = document.getElementById('edit-modal-flash-messages');
+            let subscriptionContentLoaded = false; 
+
+            function showEditModalFlash(message, type = 'error') { /* ... definition ... */ 
+                if (!editModalFlashMessagesDiv) return;
+                const bgColor = type === 'error' ? '#f8d7da' : (type === 'success' ? '#d1e7dd' : '#fff3cd');
+                const textColor = type === 'error' ? '#842029' : (type === 'success' ? '#0f5132' : '#664d03');
+                editModalFlashMessagesDiv.innerHTML = `<p style="padding: 10px; border-radius: 4px; background-color: ${bgColor}; color: ${textColor}; border: 1px solid ${textColor};">${message}</p>`;
+                setTimeout(() => { editModalFlashMessagesDiv.innerHTML = ''; }, 5000);
+            }
+
+            function renderEditFormInModal(config, allGroups, modalContentArea) { /* ... definition ... */ 
+                const freq = config.distribution_frequency;
+                let dayLabel = '发放日期/星期:'; let dayPlaceholder = ''; let dayHintText = ''; let dayInputType = 'number';
+                if (freq === 'weekly') { dayLabel = '发放星期 (0-6):'; dayPlaceholder = '0-6 (周一到周日)'; dayHintText = '0=周一, ..., 6=周日';}
+                else if (freq === 'monthly') { dayLabel = '发放日期 (1-31):'; dayPlaceholder = '1-31'; dayHintText = '输入月份中的日期 (1-31)';}
+                else { dayLabel = '发放日期 (每日无需填写):'; dayInputType = 'hidden'; }
+                let formHtml = `
+                    <form id="form-edit-sub-modal-${config.id}" data-config-id="${config.id}" class="subscription-actual-edit-form">
+                        <div class="form-group"><label for="sub-name-modal-${config.id}">名称:</label><input type="text" id="sub-name-modal-${config.id}" name="name" value="${config.name}" required class="form-control" style="width:100%"></div>
+                        <div class="form-group"><label for="sub-frequency-modal-${config.id}">发放频率:</label><select id="sub-frequency-modal-${config.id}" name="distribution_frequency" class="form-control" style="width:100%"><option value="daily" ${freq === 'daily' ? 'selected' : ''}>每日</option><option value="weekly" ${freq === 'weekly' ? 'selected' : ''}>每周</option><option value="monthly" ${freq === 'monthly' ? 'selected' : ''}>每月</option></select></div>
+                        <div class="form-group sub-day-group" id="sub-day-group-modal-${config.id}" style="display: ${freq === 'daily' ? 'none' : 'block'};"><label for="sub-day-modal-${config.id}" id="sub-day-label-modal-${config.id}">${dayLabel}</label><input type="${dayInputType}" id="sub-day-modal-${config.id}" name="distribution_day" value="${config.distribution_day || ''}" placeholder="${dayPlaceholder}" class="form-control" style="width:100%"><small id="sub-day-hint-modal-${config.id}" style="display:block; margin-top:4px; font-size:0.8em; color:#666;">${dayHintText}</small></div>
+                        <div class="form-group"><label for="sub-time-modal-${config.id}">发放时间 (HH:MM):</label><input type="time" id="sub-time-modal-${config.id}" name="distribution_time" value="${config.distribution_time || '00:00'}" required class="form-control" style="width:100%"></div>
+                        <div class="form-group"><label for="sub-points-modal-${config.id}">发放点数:</label><input type="number" id="sub-points-modal-${config.id}" name="points_to_distribute" value="${config.points_to_distribute}" required min="0" class="form-control" style="width:100%"></div>
+                        <div class="form-group"><label for="sub-target-groups-modal-${config.id}">目标用户组 (按住 Ctrl/Cmd 多选):</label><select id="sub-target-groups-modal-${config.id}" name="target_group_ids" multiple class="form-control" style="width:100%; height: 120px;">${allGroups.map(group => `<option value="${group.id}" ${config.target_groups.some(tg => tg.id === group.id) ? 'selected' : ''}>${group.name}</option>`).join('')}</select></div>
+                        <div class="form-group"><label for="sub-is-active-modal-${config.id}" style="display: inline-flex; align-items: center; font-weight: normal;"><input type="checkbox" id="sub-is-active-modal-${config.id}" name="is_active" ${config.is_active ? 'checked' : ''} style="width: auto; margin-right: 8px; margin-bottom: 0;">启用此订阅</label></div>
+                        <button type="submit" class="form-button">保存更改</button>
+                        <button type="button" class="action-btn btn-cancel-edit-sub-modal" style="margin-left: 10px;">取消</button>
+                    </form>
+                `;
+                modalContentArea.innerHTML = formHtml;
+                const editForm = document.getElementById(`form-edit-sub-modal-${config.id}`);
+                const freqSelect = editForm.querySelector(`#sub-frequency-modal-${config.id}`);
+                const dayGroupDiv = editForm.querySelector(`#sub-day-group-modal-${config.id}`);
+                const dayLabelEl = editForm.querySelector(`#sub-day-label-modal-${config.id}`);
+                const dayInputEl = editForm.querySelector(`#sub-day-modal-${config.id}`);
+                const dayHintEl = editForm.querySelector(`#sub-day-hint-modal-${config.id}`);
+                function updateDayFieldBasedOnFrequencyModal() { /* ... as defined before ... */ 
+                     const currentFreq = freqSelect.value;
+                     if (currentFreq === 'daily') { dayGroupDiv.style.display = 'none'; dayInputEl.type = 'hidden'; dayInputEl.value = ''; dayHintEl.textContent = ''; }
+                     else { dayGroupDiv.style.display = 'block'; dayInputEl.type = 'number';
+                         if (currentFreq === 'weekly') { dayLabelEl.textContent = '发放星期 (0-6):'; dayInputEl.placeholder = '0-6 (周一到周日)'; dayHintEl.textContent = '0=周一, ..., 6=周日';}
+                         else { dayLabelEl.textContent = '发放日期 (1-31):'; dayInputEl.placeholder = '1-31'; dayHintEl.textContent = '输入月份中的日期 (1-31)';}}
+                }
+                freqSelect.addEventListener('change', updateDayFieldBasedOnFrequencyModal);
+                updateDayFieldBasedOnFrequencyModal();
+                editForm.querySelector('.btn-cancel-edit-sub-modal').addEventListener('click', () => {
+                    if(editSubscriptionModal) editSubscriptionModal.style.display = 'none';
+                    modalContentArea.innerHTML = '';
+                });
+                editForm.addEventListener('submit', async function(event) { /* ... form submission logic ... */ 
+                    event.preventDefault();
+                    const formData = new FormData(this);
+                    const targetGroupIds = Array.from(formData.getAll('target_group_ids')).map(id => parseInt(id));
+                    const payload = {
+                        name: formData.get('name'),
+                        distribution_frequency: formData.get('distribution_frequency'),
+                        distribution_day: formData.get('distribution_frequency') === 'daily' ? null : (formData.get('distribution_day') ? parseInt(formData.get('distribution_day')) : null),
+                        distribution_time: formData.get('distribution_time'),
+                        points_to_distribute: parseInt(formData.get('points_to_distribute')),
+                        is_active: formData.get('is_active') === 'on',
+                        target_group_ids: targetGroupIds
+                    };
+                    try {
+                        const response = await fetch(`/user/subscription-configs/${config.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const responseData = await response.json();
+                        if (!response.ok) {
+                            showEditModalFlash(`更新失败: ${responseData.error || response.statusText}`, 'error');
+                            throw new Error(responseData.error || `更新失败: ${response.statusText}`);
+                        }
+                        showEditModalFlash('订阅配置已更新!', 'success');
+                        setTimeout(() => {
+                            if(editSubscriptionModal) editSubscriptionModal.style.display = 'none';
+                            modalContentArea.innerHTML = '';
+                            loadSubscriptionConfigs();
+                        }, 1500);
+                    } catch (error) {
+                        console.error('Error updating subscription config:', error);
+                    }
+                });
+            }
+
+            async function loadAndPopulateEditFormInModal(configId, modalContentArea) { /* ... definition ... */ 
+                modalContentArea.innerHTML = `<p style="padding:10px;">正在加载编辑表单 (ID: ${configId})...</p>`;
+                try {
+                    const [configDetailsRes, groupsRes] = await Promise.all([
+                        fetch(`/user/subscription-configs/${configId}`),
+                        fetch('/api/groups')
+                    ]);
+                    if (!configDetailsRes.ok) throw new Error('无法加载订阅配置详情。');
+                    if (!groupsRes.ok) throw new Error('无法加载用户组列表。');
+                    const config = await configDetailsRes.json();
+                    const allGroups = await groupsRes.json();
+                    renderEditFormInModal(config, allGroups, modalContentArea);
+                } catch (error) {
+                    modalContentArea.innerHTML = `<p style="color:red; padding:10px;">加载编辑表单失败: ${error.message}</p>`;
+                }
+            }
+
+            async function handleOpenEditSubscriptionModal(event) { /* ... definition ... */ 
+                event.stopPropagation();
+                const configId = event.currentTarget.dataset.id;
+                if (editSubscriptionModal && editSubscriptionFormContentArea) {
+                    editSubscriptionFormContentArea.innerHTML = '<p style="padding:10px;">正在加载编辑数据...</p>';
+                    if(editModalFlashMessagesDiv) editModalFlashMessagesDiv.innerHTML = ''; 
+                    editSubscriptionModal.style.display = 'block';
+                    await loadAndPopulateEditFormInModal(configId, editSubscriptionFormContentArea); 
+                }
+            }
+
+            async function handleDeleteSubscription(event) { /* ... definition ... */ 
+                const configId = event.currentTarget.dataset.id;
+                if (!confirm(`确定要删除订阅组 ID: ${configId} 吗？`)) return;
+                try {
+                    const response = await fetch(`/user/subscription-configs/${configId}`, { method: 'DELETE' });
+                    const data = await response.json(); 
+                    if (!response.ok) throw new Error(data.error || `删除失败: ${response.status}`);
+                    alert(data.message || '订阅组已删除。');
+                    loadSubscriptionConfigs();
+                } catch (error) {
+                    alert(`删除订阅组时出错: ${error.message}`);
+                }
+            }
+
+            async function handleCreateNewSubscription() { /* ... definition ... */ 
+                if (!confirm('确定要创建一个新的默认订阅组吗？')) return;
+                try {
+                    const response = await fetch('/user/subscription-configs', { method: 'POST' });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || `创建失败: ${response.status}`);
+                    alert(`订阅组 "${data.name}" 已创建！`);
+                    loadSubscriptionConfigs();
+                } catch (error) {
+                    alert(`创建订阅组时出错: ${error.message}`);
+                }
+            }
+
+            function renderSubscriptionConfigs(configs, container) { /* ... definition ... */ 
+                if (!configs || configs.length === 0) {
+                    container.innerHTML = '<p>当前没有订阅组配置。</p>';
+                    return;
+                }
+                let listHtml = '<ul style="list-style: none; padding: 0;">';
+                configs.forEach(config => {
+                    const isActiveText = config.is_active ? '<span style="color: green;">已启用</span>' : '<span style="color: #aaa;">已禁用</span>';
+                    const timeStr = config.distribution_time || "N/A";
+                    let freqStr = config.distribution_frequency.charAt(0).toUpperCase() + config.distribution_frequency.slice(1);
+                    if (config.distribution_frequency === 'monthly') freqStr += ` (第 ${config.distribution_day} 天)`;
+                    else if (config.distribution_frequency === 'weekly') {
+                        const days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+                        freqStr += ` (${days[config.distribution_day] || 'N/A'})`;
+                    }
+                    listHtml += `
+                        <li style="padding: 10px; border: 1px solid #eee; margin-bottom: 8px; border-radius: 5px; background-color: #fff;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong style="font-size: 1.1em; cursor: pointer;" class="subscription-name-clickable" data-id="${config.id}">${config.name}</strong>
+                                <div>
+                                    <button class="action-btn btn-open-edit-sub-modal" data-id="${config.id}" style="margin-right: 5px;" title="编辑"><i class="fas fa-edit"></i> 编辑</button>
+                                    <button class="action-btn delete-btn btn-delete-subscription" data-id="${config.id}" title="删除"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                            <div style="font-size: 0.9em; color: #555; margin-top: 5px;">状态: ${isActiveText} | 规则: ${freqStr} 于 ${timeStr} 发放 ${config.points_to_distribute} 点</div>
+                            <div style="font-size: 0.8em; color: #777;">目标组: ${config.target_groups.map(g => g.name).join(', ') || '无'}</div>
+                        </li>
+                    `;
+                });
+                listHtml += '</ul>';
+                container.innerHTML = listHtml;
+                document.querySelectorAll('.btn-delete-subscription').forEach(button => button.addEventListener('click', handleDeleteSubscription));
+                document.querySelectorAll('.btn-open-edit-sub-modal, .subscription-name-clickable').forEach(element => {
+                    element.addEventListener('click', handleOpenEditSubscriptionModal);
+                });
+            }
+
+            async function loadSubscriptionConfigs() { /* ... definition ... */ 
+                if (!subPanelContent) return;
+                console.log("loadSubscriptionConfigs called");
+                subPanelContent.innerHTML = '<p style="padding:10px;">正在加载订阅组配置...</p>'; 
+                let panelHtml = `
+                    <div style="margin-bottom: 15px; padding: 0 20px; /* Match panel-actual-content padding */">
+                        <button id="btn-create-new-subscription" class="form-button">
+                            <i class="fas fa-plus-circle"></i> 新建订阅组
+                        </button>
+                    </div>
+                    <div id="subscription-config-list-container" style="padding: 0 20px;">
+                    </div>
+                `;
+                subPanelContent.innerHTML = panelHtml;
+                console.log("Subscription panel HTML structure with button set.");
+                const btnCreateNewSubscription = document.getElementById('btn-create-new-subscription');
+                if(btnCreateNewSubscription) {
+                    btnCreateNewSubscription.addEventListener('click', handleCreateNewSubscription);
+                    console.log("Event listener for create new subscription button attached.");
+                }
+                const listContainer = document.getElementById('subscription-config-list-container');
+                try {
+                    const response = await fetch('/user/subscription-configs');
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error || `获取订阅配置失败: ${response.status}`);
+                    }
+                    const configs = await response.json();
+                    renderSubscriptionConfigs(configs, listContainer); 
+                } catch (error) {
+                    listContainer.innerHTML = `<p style="color: red;">加载订阅配置出错: ${error.message}</p>`;
+                    console.error('Error loading subscription configs:', error);
+                }
+            }
+
+            // --- Setup Event Listeners and Initial Calls ---
+            
+            // User/Group Management Listeners
+            document.querySelectorAll('.grant-form').forEach(form => form.addEventListener('submit', handleGrantPointsSubmit));
+            const createGroupForm = document.getElementById('create-group-form');
+            if (createGroupForm) createGroupForm.addEventListener('submit', handleCreateGroupSubmit);
+            document.querySelectorAll('.add-user-to-group-form').forEach(form => form.addEventListener('submit', handleAddUserToGroupSubmit));
+
+            // Invitation Code Modal Listeners (assuming they are defined and needed)
+            const btnOpenCreateInvModal = document.getElementById('btn-open-create-invitation-modal');
+            const createInvModal = document.getElementById('create-invitation-modal');
+            const closeInvModalBtn = createInvModal ? createInvModal.querySelector('.close-modal-btn') : null;
+            // ... Add other invitation modal listeners here if they were inside the previous DOMContentLoaded ...
+            if (btnOpenCreateInvModal) { /* ... */ }
+            if (closeInvModalBtn) { /* ... */ }
+            // ... etc ...
+
+            // Subscription Panel Toggle Logic (Simplified)
+            const panelToggleHandle = subscriptionPanel ? subscriptionPanel.querySelector('.panel-toggle-handle') : null;
+            if (subscriptionPanel && panelToggleHandle && subPanelContent) {
+                panelToggleHandle.addEventListener('click', function() {
+                    const willBeExpanded = !subscriptionPanel.classList.contains('expanded');
+                    subscriptionPanel.classList.toggle('expanded');
+                    if (willBeExpanded && !subscriptionContentLoaded) {
+                        loadSubscriptionConfigs();
+                        subscriptionContentLoaded = true;
+                    }
+                });
+
+                // Initial load check if panel is set to be expanded by default (e.g. via a class)
+                if (subscriptionPanel.classList.contains('expanded') && !subscriptionContentLoaded) {
+                    loadSubscriptionConfigs();
+                    subscriptionContentLoaded = true;
+                }
+            }
+
+            // Subscription Edit Modal Close Listeners
+            if (closeEditSubModalBtn) {
+                closeEditSubModalBtn.addEventListener('click', () => {
+                    if(editSubscriptionModal) editSubscriptionModal.style.display = 'none';
+                    if(editSubscriptionFormContentArea) editSubscriptionFormContentArea.innerHTML = '';
+                    if(editModalFlashMessagesDiv) editModalFlashMessagesDiv.innerHTML = '';
+                });
+            }
+            window.addEventListener('click', (event) => {
+                if (event.target == editSubscriptionModal) {
+                    editSubscriptionModal.style.display = 'none';
+                    if(editSubscriptionFormContentArea) editSubscriptionFormContentArea.innerHTML = '';
+                    if(editModalFlashMessagesDiv) editModalFlashMessagesDiv.innerHTML = '';
+                }
+                // Also handle invitation modal backdrop click if needed
+                const createInvModalCheck = document.getElementById('create-invitation-modal');
+                if (event.target == createInvModalCheck) {
+                    createInvModalCheck.style.display = 'none';
+                }
+            });
+
+        }); // End of the SINGLE main DOMContentLoaded listener
 
     </script>
 

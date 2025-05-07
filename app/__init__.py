@@ -37,29 +37,23 @@ def create_app(config_class=Config):
     from .api import api_bp as api_blueprint
     app.register_blueprint(api_blueprint)
 
-    # 不再需要在这里调用 db.create_all()，迁移工具会管理表的创建和更新
-    # with app.app_context():
-    #     try:
-    #         from .models.user import User
-    #     except ImportError:
-    #         print("Warning: User model not found, cannot create initial admin.")
-    #         User = None 
-    #     try:
-    #         from .models.filesystem import FileSystemItem
-    #     except ImportError:
-    #         print("Warning: FileSystemItem model not found.")
-    #         FileSystemItem = None
-    #     db.create_all()
-        
-    # 创建初始管理员的逻辑可以保留，但最好放在迁移之后或单独的 CLI 命令中
-    # 确保在尝试查询 User 前，表已通过迁移创建
-    # with app.app_context(): 
-    #    if User: 
-    #        admin_user = User.query.filter_by(username='admin').first()
-    #        if not admin_user: 
-    #            # ... 创建管理员代码 ...
-    # 为了安全起见，暂时注释掉自动创建管理员的逻辑
-    # 建议之后创建一个 flask db seed 命令来添加初始数据
-    pass
+    # 取消注释自动创建管理员的逻辑
+    with app.app_context():
+        from .models.user import User # 移到 app_context内部以避免循环导入问题
+        if User.query.first() is None:
+            print("No users found. Creating default admin user.")
+            default_admin = User(
+                username='admin',
+                is_admin=True,
+                password_change_required=True
+            )
+            default_admin.password = 'admin' # 使用 User 模型的 password setter
+            db.session.add(default_admin)
+            try:
+                db.session.commit()
+                print("Default admin user 'admin' created successfully.")
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error creating default admin user: {e}")
 
     return app 

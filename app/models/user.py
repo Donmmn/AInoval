@@ -6,8 +6,10 @@ from .group import user_group_association
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=True)
     password_hash = db.Column(db.String(128), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
+    password_change_required = db.Column(db.Boolean, default=False, nullable=False)
     auto_save_on_navigate = db.Column(db.Boolean, default=True, nullable=False)
     points = db.Column(db.Integer, default=0, nullable=False)
     # --- 新增字段：存储用户启用的 AI 服务配置 ID ---

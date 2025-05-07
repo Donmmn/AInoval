@@ -2,26 +2,104 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>注册管理员 - 小说编辑器</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <title>注册 - 小说编辑器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f7f7f7;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .register-container {
+            background: #fff;
+            padding: 40px 50px 30px 50px;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+            width: 360px;
+        }
+        .register-container h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #444;
+        }
+        .register-container input[type="text"],
+        .register-container input[type="password"],
+        .register-container input[type="email"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 18px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            box-sizing: border-box; /* Ensures padding doesn't affect width */
+            font-size: 16px;
+        }
+        .register-container button {
+            width: 100%;
+            background: #5cb85c; /* Green color for registration */
+            color: #fff;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 0;
+            font-size: 18px;
+            letter-spacing: 2px;
+            margin-top: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .register-container button:hover {
+            background: #4cae4c;
+        }
+        .flashes {
+            list-style-type: none;
+            padding: 0;
+            margin-top: 15px;
+            text-align: center;
+        }
+        .flashes li {
+            color: #d33; /* Red for errors */
+            margin-bottom: 5px;
+        }
+        .login-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .login-link a {
+            color: #888;
+            text-decoration: none;
+        }
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
 <body>
-    <div class="login-container">
-        <h2>注册管理员</h2>
+    <div class="register-container">
+        <h2>创建账户</h2>
         <form method="post">
             <input type="text" name="username" placeholder="用户名" required><br>
+            <input type="email" name="email" placeholder="邮箱 (可选)" ><br> 
             <input type="password" name="password" placeholder="密码" required><br>
+            <input type="text" name="invitation_code" placeholder="邀请码" required><br>
             <button type="submit">注册</button>
         </form>
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             <ul class="flashes">
-            {% for message in messages %}
-              <li>{{ message }}</li>
+            {% for category, message in messages %}
+              <li class="{{ category }}">{{ message }}</li>
             {% endfor %}
             </ul>
           {% endif %}
         {% endwith %}
+        <div class="login-link">
+            已有账户？ <a href="{{ url_for('auth.login') }}">立即登录</a>
+        </div>
     </div>
 </body>
 </html> 

@@ -388,6 +388,15 @@ def get_unassociated_books():
 
 # --- 用户组管理 API ---
 
+# 新增：获取所有用户组列表
+@api_bp.route('/groups', methods=['GET'])
+@login_required
+def get_all_groups():
+    if not current_user.is_admin: # 或者根据您的权限需求调整
+        return jsonify({'error': '权限不足'}), 403
+    groups = Group.query.order_by(Group.name).all()
+    return jsonify([{'id': group.id, 'name': group.name} for group in groups])
+
 # 创建新用户组
 @api_bp.route('/groups', methods=['POST'])
 @login_required

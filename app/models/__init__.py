@@ -19,11 +19,16 @@ except ImportError:
 from .ai_service import AIService
 from .group import Group
 from .prompt import PromptTemplate
+from .invitation_code import InvitationCode
+from .subscription_config import SubscriptionConfig, subscription_config_group_association
 
 __all__ = [
     'User', 'UserRole', 'Role',
     'Group',
     'File', 'Folder',
     'AIService',
-    'PromptTemplate'
+    'PromptTemplate',
+    'InvitationCode',
+    'SubscriptionConfig',
+    'subscription_config_group_association'
 ] 

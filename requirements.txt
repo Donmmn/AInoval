@@ -5,4 +5,6 @@ Click # 用于 Flask CLI 命令
 Flask-Migrate # 添加数据库迁移工具
 Flask-WTF
 requests
+Flask-APScheduler==1.13.1
+APScheduler==3.11.0
 # 添加其他您项目中可能使用的依赖，例如 gunicorn, python-dotenv 等 
