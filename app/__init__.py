@@ -2,11 +2,13 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from flask_apscheduler import APScheduler
 import os
 
 db = SQLAlchemy()
 login_manager = LoginManager()
 migrate = Migrate()
+scheduler = APScheduler()
 login_manager.login_view = 'auth.login'
 
 # 从 config 导入配置
@@ -24,6 +26,14 @@ def create_app(config_class=Config):
     db.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
+
+    # Initialize APScheduler
+    if not scheduler.running:
+        scheduler.init_app(app)
+        scheduler.start()
+        print("APScheduler started.")
+    else:
+        print("APScheduler already running or reinitialized.")
 
     from .views import main as main_blueprint
     app.register_blueprint(main_blueprint)
@@ -55,5 +65,15 @@ def create_app(config_class=Config):
             except Exception as e:
                 db.session.rollback()
                 print(f"Error creating default admin user: {e}")
+
+    # Register scheduled tasks after app is fully initialized and blueprints are registered
+    # to ensure tasks have access to app context and configurations.
+    if app.config.get('SCHEDULER_API_ENABLED', False) or not app.testing: # Check if API is enabled or not in testing
+        from . import tasks
+        if not scheduler.get_job('distribute_points_job'):
+             # Pass the app instance to the function that registers tasks if needed for context
+            tasks.initialize_scheduler(app, scheduler) 
+        else:
+            print("'distribute_points_job' already scheduled.")
 
     return app 

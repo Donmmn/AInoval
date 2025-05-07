@@ -9,6 +9,12 @@ import string  # For random code generation
 import datetime # For expiration_date calculation
 from app.models.invitation_code import InvitationCode # Import InvitationCode model
 from app.models.subscription_config import SubscriptionConfig # Import the new model
+import os # For path operations
+import json # For JSON operations
+from app import scheduler # Import the scheduler instance
+from datetime import timezone, timedelta # For timezone-aware datetimes
+from app.models.app_settings import get_setting, set_setting # Import settings helpers
+import pytz # Import pytz for timezone handling
 
 user = Blueprint('user', __name__, url_prefix='/user')
 
@@ -25,6 +31,11 @@ def _correct_distribution_day(frequency, day_value):
         return day # For 'daily' or other cases, return as is
     except (ValueError, TypeError):
         return day_value # Return original if not a valid number, let further validation catch it
+
+# Helper to get log file path
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+LOG_DIR = os.path.join(PROJECT_ROOT, 'logs')
+POINTS_DISTRIBUTION_LOG_FILE = os.path.join(LOG_DIR, 'points_distribution.json')
 
 @user.route('/manage', methods=['GET', 'POST'])
 @login_required
@@ -208,16 +219,37 @@ def get_subscription_configs():
     
     configs = SubscriptionConfig.query.order_by(SubscriptionConfig.name).all()
     results = []
+    
+    # Get current timezone setting once for all configs
+    try:
+        distribution_tz_name = get_setting('distribution_timezone', 'Asia/Shanghai')
+        distribution_tz = pytz.timezone(distribution_tz_name)
+    except pytz.UnknownTimeZoneError:
+        distribution_tz = pytz.utc 
+        print(f"WARNING: Invalid timezone setting '{distribution_tz_name}' found, falling back to UTC for display.")
+
     for config in configs:
+        # Convert stored UTC time back to configured timezone for display
+        display_time_str = None
+        if config.distribution_time:
+            try:
+                naive_dt_utc = datetime.datetime.combine(datetime.date.today(), config.distribution_time)
+                aware_dt_utc = pytz.utc.localize(naive_dt_utc)
+                aware_dt_local = aware_dt_utc.astimezone(distribution_tz)
+                display_time_str = aware_dt_local.strftime('%H:%M')
+            except Exception as e: # Catch potential errors during conversion
+                print(f"Error converting time for config {config.id}: {e}")
+                display_time_str = config.distribution_time.strftime('%H:%M') + " (UTC? Error)" # Fallback display
+
         results.append({
             "id": config.id,
             "name": config.name,
             "distribution_frequency": config.distribution_frequency,
             "distribution_day": config.distribution_day,
-            "distribution_time": config.distribution_time.strftime('%H:%M') if config.distribution_time else None,
+            "distribution_time": display_time_str, # Use converted time string
             "points_to_distribute": config.points_to_distribute,
             "is_active": config.is_active,
-            "last_processed_at": config.last_processed_at.strftime('%Y-%m-%d %H:%M:%S') if config.last_processed_at else None,
+            "last_processed_at": config.last_processed_at.isoformat() + "Z" if config.last_processed_at else None, # Use ISO format for consistency
             "target_groups": [{"id": g.id, "name": g.name} for g in config.target_groups.all()]
         })
     return jsonify(results), 200
@@ -269,15 +301,35 @@ def get_subscription_config_detail(config_id):
     if not config:
         return jsonify({"error": "订阅配置未找到"}), 404
     
+    # Get current timezone setting
+    try:
+        distribution_tz_name = get_setting('distribution_timezone', 'Asia/Shanghai')
+        distribution_tz = pytz.timezone(distribution_tz_name)
+    except pytz.UnknownTimeZoneError:
+        distribution_tz = pytz.utc 
+        print(f"WARNING: Invalid timezone setting '{distribution_tz_name}' found, falling back to UTC for display.")
+
+    # Convert stored UTC time back to configured timezone for display
+    display_time_str = None
+    if config.distribution_time:
+        try:
+            naive_dt_utc = datetime.datetime.combine(datetime.date.today(), config.distribution_time)
+            aware_dt_utc = pytz.utc.localize(naive_dt_utc)
+            aware_dt_local = aware_dt_utc.astimezone(distribution_tz)
+            display_time_str = aware_dt_local.strftime('%H:%M')
+        except Exception as e:
+            print(f"Error converting time for config detail {config.id}: {e}")
+            display_time_str = config.distribution_time.strftime('%H:%M') + " (UTC? Error)"
+
     return jsonify({
         "id": config.id,
         "name": config.name,
         "distribution_frequency": config.distribution_frequency,
         "distribution_day": config.distribution_day,
-        "distribution_time": config.distribution_time.strftime('%H:%M') if config.distribution_time else None,
+        "distribution_time": display_time_str, # Use converted time string
         "points_to_distribute": config.points_to_distribute,
         "is_active": config.is_active,
-        "last_processed_at": config.last_processed_at.strftime('%Y-%m-%d %H:%M:%S') if config.last_processed_at else None,
+        "last_processed_at": config.last_processed_at.isoformat() + "Z" if config.last_processed_at else None, # Use ISO format
         "target_groups": [{"id": g.id, "name": g.name} for g in config.target_groups.all()]
     }), 200
 
@@ -347,8 +399,31 @@ def update_subscription_config(config_id):
         
         if 'distribution_time' in data and data['distribution_time'] is not None:
             try:
-                time_obj = datetime.datetime.strptime(data['distribution_time'], '%H:%M').time()
-                config.distribution_time = time_obj
+                time_str = data['distribution_time'] # e.g., "14:30"
+                naive_time_obj = datetime.datetime.strptime(time_str, '%H:%M').time()
+                
+                # Get the configured distribution timezone (default to Shanghai)
+                distribution_tz_name = get_setting('distribution_timezone', 'Asia/Shanghai')
+                try:
+                    distribution_tz = pytz.timezone(distribution_tz_name)
+                except pytz.UnknownTimeZoneError:
+                    return jsonify({"error": f"无效的系统时区设置: {distribution_tz_name}"}), 500
+
+                # Create a naive datetime object for today with the parsed time
+                # The date part doesn't matter, we only need it to make the time timezone-aware
+                naive_dt_today = datetime.datetime.combine(datetime.date.today(), naive_time_obj)
+
+                # Localize the naive datetime to the distribution timezone
+                localized_dt = distribution_tz.localize(naive_dt_today)
+
+                # Convert the localized datetime to UTC
+                utc_dt = localized_dt.astimezone(pytz.utc)
+
+                # Extract the time part from the UTC datetime and save it
+                config.distribution_time = utc_dt.time()
+                
+                print(f"--- TIMEZONE DEBUG: Input: {time_str} in {distribution_tz_name}, Saved as UTC: {config.distribution_time.strftime('%H:%M')} ---") # DEBUG PRINT
+
             except (ValueError, TypeError):
                 return jsonify({"error": "时间格式无效 (HH:MM)"}), 400
 
@@ -413,3 +488,121 @@ def delete_subscription_config(config_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"删除订阅配置失败: {str(e)}"}), 500
+
+# --- Subscription Log API Routes ---
+
+@user.route('/subscription-logs', methods=['GET'])
+@login_required
+def get_subscription_logs():
+    if not current_user.is_admin:
+        return jsonify({"error": "无权限访问"}), 403
+
+    if not os.path.exists(POINTS_DISTRIBUTION_LOG_FILE):
+        return jsonify([]), 200 # Return empty list if log file doesn't exist
+
+    try:
+        with open(POINTS_DISTRIBUTION_LOG_FILE, 'r', encoding='utf-8') as f:
+            logs_data = json.load(f)
+            if not isinstance(logs_data, list):
+                # Log is not a list, perhaps corrupted, return empty
+                return jsonify([]), 200 
+        return jsonify(logs_data), 200
+    except json.JSONDecodeError:
+        return jsonify({"error": "日志文件格式无效"}), 500
+    except IOError as e:
+        return jsonify({"error": f"读取日志文件失败: {str(e)}"}), 500
+
+@user.route('/clear-subscription-logs', methods=['POST'])
+@login_required
+def clear_subscription_logs():
+    if not current_user.is_admin:
+        return jsonify({"error": "无权限操作"}), 403
+
+    data = request.json
+    if not data or 'admin_password' not in data:
+        return jsonify({"error": "缺少管理员密码"}), 400
+
+    admin_password_attempt = data.get('admin_password')
+
+    # Verify admin password (current_user is the admin performing the action)
+    if not current_user.verify_password(admin_password_attempt):
+        return jsonify({"error": "管理员密码错误"}), 403
+
+    try:
+        # Ensure logs directory exists (though it should if tasks.py ran)
+        if not os.path.exists(LOG_DIR):
+            os.makedirs(LOG_DIR)
+            
+        # Clear the log file by writing an empty JSON array to it
+        with open(POINTS_DISTRIBUTION_LOG_FILE, 'w', encoding='utf-8') as f:
+            json.dump([], f)
+        
+        flash('订阅点数发放日志已清除。', 'success') # For potential non-JS fallback or server-side logging
+        return jsonify({"message": "订阅点数发放日志已成功清除"}), 200
+    except IOError as e:
+        return jsonify({"error": f"清除日志文件失败: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"清除日志时发生未知错误: {str(e)}"}), 500
+
+@user.route('/next-distribution-time', methods=['GET'])
+@login_required
+def get_next_distribution_time():
+    if not current_user.is_admin:
+        return jsonify({"error": "无权限访问"}), 403
+
+    job = scheduler.get_job('distribute_points_job')
+    if job and job.next_run_time:
+        # Convert to timezone-aware UTC datetime if it's naive, then to ISO format
+        next_run_utc = job.next_run_time
+        if next_run_utc.tzinfo is None:
+            next_run_utc = next_run_utc.replace(tzinfo=timezone.utc)
+        else:
+            next_run_utc = next_run_utc.astimezone(timezone.utc)
+            
+        return jsonify({"next_run_time": next_run_utc.isoformat()}), 200
+    elif job:
+        return jsonify({"message": "任务已调度，但下次运行时间未知 (可能已暂停或刚执行完)"}), 200
+    else:
+        return jsonify({"error": "分发任务 'distribute_points_job' 未找到或未调度"}), 404
+
+# --- App Settings API Routes (Timezone) ---
+
+@user.route('/app-settings/timezones', methods=['GET'])
+@login_required
+def get_available_timezones():
+    if not current_user.is_admin:
+        return jsonify({"error": "无权限访问"}), 403
+    # Return the list of all timezones known by pytz
+    return jsonify(pytz.all_timezones), 200
+
+@user.route('/app-settings/distribution-timezone', methods=['GET'])
+@login_required
+def get_distribution_timezone():
+    if not current_user.is_admin:
+        return jsonify({"error": "无权限访问"}), 403
+    current_tz = get_setting('distribution_timezone', 'Asia/Shanghai')
+    return jsonify({"timezone": current_tz}), 200
+
+@user.route('/app-settings/distribution-timezone', methods=['PUT'])
+@login_required
+def set_distribution_timezone():
+    if not current_user.is_admin:
+        return jsonify({"error": "无权限操作"}), 403
+    
+    data = request.json
+    if not data or 'timezone' not in data:
+        return jsonify({"error": "缺少时区名称 ('timezone')"}), 400
+        
+    new_tz_name = data.get('timezone')
+    
+    # Validate if the provided timezone name is valid
+    if new_tz_name not in pytz.all_timezones:
+        return jsonify({"error": f"无效的时区名称: {new_tz_name}"}), 400
+        
+    try:
+        set_setting('distribution_timezone', new_tz_name)
+        db.session.commit() # Remember to commit after set_setting
+        return jsonify({"message": f"分发时区已成功更新为: {new_tz_name}"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"保存时区设置失败: {str(e)}"}), 500

@@ -32,3 +32,6 @@ __all__ = [
     'SubscriptionConfig',
     'subscription_config_group_association'
 ] 
+# 文件: app/models/__init__.py
+# ... (可能存在的其他导入) ...
+from .app_settings import AppSettings, get_setting, set_setting # 确保这行存在

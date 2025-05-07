@@ -44,6 +44,34 @@
              align-items: center;
              gap: 15px; /* Match index.html gap? */
         }
+        /* Timezone selector styling */
+        .timezone-selector-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-right: 15px; /* Add some space before right buttons */
+        }
+        .timezone-selector-container label {
+            color: #e0e0e0; /* Lighter text for label */
+            font-size: 14px;
+            margin-bottom: 0; /* Override default label margin */
+            font-weight: normal;
+        }
+        #timezone-selector {
+            padding: 4px 8px;
+            border: 1px solid #666;
+            border-radius: 4px;
+            background-color: #555;
+            color: #fff;
+            font-size: 13px;
+            max-width: 200px; /* Prevent it from becoming too wide */
+        }
+        #timezone-selector:focus {
+            outline: none;
+            border-color: #aaa;
+            box-shadow: 0 0 3px rgba(255, 255, 255, 0.3);
+        }
+
         /* .top-btn is defined in style.css, reuse that class for consistency */
         /* Remove redundant .top-btn style here if style.css is loaded */
          /* Example: Keep minimal override if needed */
@@ -403,12 +431,223 @@
             margin: 15px 0;
         }
 
+        /* Styles for Target Group Manager in Modal */
+        .target-groups-manager {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            margin-top: 5px; /* Add some space above */
+        }
+        .selected-groups-container {
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 30px; /* Ensure it has some height even when empty */
+            display: flex;
+            flex-wrap: wrap; /* Allow items to wrap */
+            gap: 8px; /* Spacing between selected group items */
+        }
+        .selected-group-item {
+            background-color: #e9ecef; /* Lighter gray */
+            color: #212529;
+            padding: 5px 10px;
+            border-radius: 15px; /* Pill shape */
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .remove-group-from-sub-btn {
+            background: none;
+            border: none;
+            color: #6c757d; /* Bootstrap secondary color */
+            font-size: 15px; /* Slightly larger for better clickability */
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0 3px; 
+            line-height: 1; 
+        }
+        .remove-group-from-sub-btn:hover {
+            color: #dc3545; /* Bootstrap danger color for hover */
+        }
+        .add-group-to-sub-controls {
+            position: relative; 
+        }
+        .btn-toggle-available-groups {
+            /* Use existing .action-btn or .form-button for consistency if desired */
+            /* This example makes it a bit more distinct */
+            background-color: #0d6efd; /* Bootstrap primary blue */
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-toggle-available-groups:hover {
+            background-color: #0b5ed7; /* Darker blue */
+        }
+        .available-groups-dropdown {
+            display: none; /* Hidden by default */
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ced4da; /* Bootstrap form input border */
+            border-radius: 4px;
+            width: 100%;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 1050; 
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15); /* Bootstrap dropdown shadow */
+            margin-top: 5px; /* Space from button */
+        }
+        .available-group-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            border-bottom: 1px solid #eee;
+            color: #212529;
+        }
+        .available-group-item:last-child {
+            border-bottom: none;
+        }
+        .available-group-item:hover {
+            background-color: #e9ecef; /* Light hover */
+        }
+        .available-group-item.disabled { 
+            color: #adb5bd; /* Bootstrap muted color */
+            cursor: not-allowed;
+            background-color: #f8f9fa;
+        }
+        .no-groups-message {
+            font-style: italic;
+            color: #6c757d;
+            font-size: 13px;
+            padding: 5px 0; /* Adjusted padding */
+            width: 100%; /* Take full width for centering or alignment */
+            text-align: center;
+        }
+
+        /* Log Viewer Modal Styles */
+        #view-logs-modal .modal-content {
+            max-width: 800px; /* Wider for logs */
+            background-color: #282c34; /* Dark background for modal content area */
+            color: #abb2bf; /* Light gray text for modal overall */
+        }
+        #view-logs-modal h2 {
+            color: #61afef; /* Light blue for header */
+            border-bottom-color: #3e4451; /* Darker border */
+        }
+        #logs-content-area {
+            background-color: #21252b; /* Slightly darker for pre background */
+            color: #dcdfe4; /* Off-white text for logs */
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 60vh; /* Adjusted height, can be tuned */
+            overflow-y: auto;
+            white-space: pre-wrap; /* Wrap long lines but preserve formatting */
+            font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            border: 1px solid #3e4451;
+            line-height: 1.5; /* Improve readability */
+        }
+        #clear-logs-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #3e4451;
+        }
+        #clear-logs-section label {
+            color: #abb2bf;
+            display: block; /* Make label take full width */
+            margin-bottom: 8px;
+        }
+        #clear-logs-section input[type="password"] {
+            background-color: #3e4451;
+            color: #dcdfe4;
+            border: 1px solid #282c34;
+            width: calc(100% - 24px); /* Adjust width considering padding */
+            padding: 10px;
+            border-radius: 4px;
+        }
+        /* Ensure close button is visible on dark background */
+        #view-logs-modal .close-modal-btn {
+            color: #abb2bf;
+            text-shadow: 0 1px 0 #000; /* Add shadow for better visibility */
+        }
+        #view-logs-modal .close-modal-btn:hover {
+            color: #fff;
+        }
+        /* Styling for buttons within the dark modal */
+        #view-logs-modal .action-btn.delete-btn {
+            background-color: #dc3545; /* Bootstrap danger red */
+            color: white;
+            border-color: #dc3545;
+        }
+        #view-logs-modal .action-btn.delete-btn:hover {
+            background-color: #c82333; /* Darker red */
+            border-color: #bd2130;
+        }
+        #view-logs-modal .action-btn {
+            background-color: #495057; /* Dark gray */
+            color: white;
+            border-color: #495057;
+        }
+        #view-logs-modal .action-btn:hover {
+            background-color: #343a40; /* Darker gray */
+            border-color: #23272b;
+        }
+        /* Log Table Styles */
+        #logs-table-container {
+            border: 1px solid #3e4451;
+            border-radius: 5px;
+            background-color: #21252b; /* Match pre background */
+            line-height: 1.5;
+        }
+        #logs-table {
+            width: 100%;
+            border-collapse: collapse;
+            color: #dcdfe4; /* Match pre text color */
+        }
+        #logs-table th, #logs-table td {
+            border: 1px solid #3e4451; /* Darker border */
+            padding: 8px 12px;
+            text-align: left;
+            font-size: 13px;
+            vertical-align: middle;
+        }
+        #logs-table th {
+            background-color: #282c34; /* Modal content background */
+            color: #61afef; /* Header color */
+            font-weight: bold;
+            position: sticky; /* Make header sticky */
+            top: 0; /* Stick to the top of the container */
+            z-index: 1; /* Ensure header is above table body */
+        }
+        #logs-table tbody tr:nth-child(even) {
+            background-color: #2c313a; /* Slightly lighter row stripe */
+        }
+        #logs-table tbody tr:hover {
+            background-color: #3e4451; /* Hover effect */
+        }
+        #logs-loading-message { /* Style for loading/empty message */
+            color: #abb2bf;
+        }
+
     </style>
 </head>
 <body>
     {# New Top Bar #}
     <div class="top-bar">
         <div class="left-controls">
+            <div class="timezone-selector-container">
+                <label for="timezone-selector">发放时区:</label>
+                <select id="timezone-selector" name="distribution_timezone">
+                    <option value="">加载中...</option>
+                </select>
+            </div>
         </div>
         <div class="right-buttons">
              <a href="{{ url_for('main.index') }}" class="top-btn">返回主界面</a>
@@ -828,7 +1067,85 @@
             const editModalFlashMessagesDiv = document.getElementById('edit-modal-flash-messages');
             let subscriptionContentLoaded = false; 
 
-            function showEditModalFlash(message, type = 'error') { /* ... definition ... */ 
+            // Log Viewer Modal Elements
+            const viewLogsModal = document.getElementById('view-logs-modal');
+            const closeLogsModalBtn = viewLogsModal ? viewLogsModal.querySelector('#close-logs-modal-btn') : null;
+            const logsContentArea = viewLogsModal ? viewLogsModal.querySelector('#logs-content-area') : null;
+            const logsModalFlashMessagesDiv = viewLogsModal ? viewLogsModal.querySelector('#logs-modal-flash-messages') : null;
+            const btnShowClearLogConfirm = viewLogsModal ? viewLogsModal.querySelector('#btn-show-clear-log-confirm') : null;
+            const clearLogConfirmArea = viewLogsModal ? viewLogsModal.querySelector('#clear-log-confirm-area') : null;
+            const adminPasswordInput = viewLogsModal ? viewLogsModal.querySelector('#admin-password-clear-logs') : null;
+            const btnConfirmClearLogs = viewLogsModal ? viewLogsModal.querySelector('#btn-confirm-clear-logs') : null;
+            const btnCancelClearLogs = viewLogsModal ? viewLogsModal.querySelector('#btn-cancel-clear-logs') : null;
+            // New elements for table display
+            const logsTableContainer = viewLogsModal ? viewLogsModal.querySelector('#logs-table-container') : null;
+            const logsTableBody = viewLogsModal ? viewLogsModal.querySelector('#logs-table tbody') : null;
+            const logsLoadingMessage = viewLogsModal ? viewLogsModal.querySelector('#logs-loading-message') : null;
+
+            function showLogsModalFlash(message, type = 'error') { 
+                if (!logsModalFlashMessagesDiv) return;
+                const bgColor = type === 'error' ? '#f8d7da' : (type === 'success' ? '#d1e7dd' : '#fff3cd');
+                const textColor = type === 'error' ? '#842029' : (type === 'success' ? '#0f5132' : '#664d03');
+                // Adjust colors for dark modal theme
+                const darkBgColor = type === 'error' ? '#58151c' : (type === 'success' ? '#052c19' : '#533f00');
+                const darkTextColor = type === 'error' ? '#f8d7da' : (type === 'success' ? '#d1e7dd' : '#fff3cd');
+                
+                logsModalFlashMessagesDiv.innerHTML = `<p style="padding: 10px; border-radius: 4px; background-color: ${darkBgColor}; color: ${darkTextColor}; border: 1px solid ${darkTextColor};">${message}</p>`;
+                setTimeout(() => { logsModalFlashMessagesDiv.innerHTML = ''; }, 5000);
+            }
+
+            async function openViewLogsModal() {
+                if (!viewLogsModal || !logsTableBody || !logsLoadingMessage || !logsTableContainer) return;
+                // Reset view
+                logsTableBody.innerHTML = ''; // Clear previous rows
+                logsLoadingMessage.textContent = '正在加载日志...';
+                logsLoadingMessage.style.display = 'block';
+                logsTableContainer.style.display = 'block'; // Show container
+                if(viewLogsModal.querySelector('#logs-table')) viewLogsModal.querySelector('#logs-table').style.display = 'none'; // Hide table initially
+                
+                if(logsModalFlashMessagesDiv) logsModalFlashMessagesDiv.innerHTML = '';
+                if(clearLogConfirmArea) clearLogConfirmArea.style.display = 'none';
+                if(btnShowClearLogConfirm) btnShowClearLogConfirm.style.display = 'inline-block';
+                if(adminPasswordInput) adminPasswordInput.value = '';
+
+                viewLogsModal.style.display = 'block';
+
+                try {
+                    const response = await fetch('/user/subscription-logs');
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || `获取日志失败: ${response.status}`);
+                    }
+
+                    logsLoadingMessage.style.display = 'none'; // Hide loading message
+                    const tableElement = viewLogsModal.querySelector('#logs-table');
+
+                    if (data && data.length > 0) {
+                        if(tableElement) tableElement.style.display = 'table'; // Show table
+                        data.forEach(log => {
+                            const row = logsTableBody.insertRow();
+                            row.insertCell().textContent = log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A';
+                            row.insertCell().textContent = log.subscription_config_name || 'N/A';
+                            row.insertCell().textContent = log.target_group_name || 'N/A';
+                            row.insertCell().textContent = log.username || 'N/A';
+                            row.insertCell().textContent = log.points_distributed !== undefined ? log.points_distributed : 'N/A';
+                            row.insertCell().textContent = log.balance_after !== undefined ? log.balance_after : 'N/A';
+                        });
+                    } else {
+                        if(tableElement) tableElement.style.display = 'none'; // Hide table
+                        logsLoadingMessage.textContent = '暂无日志记录。';
+                        logsLoadingMessage.style.display = 'block'; // Show empty message
+                    }
+                } catch (error) {
+                    logsLoadingMessage.textContent = `加载日志出错: ${error.message}`;
+                    logsLoadingMessage.style.display = 'block';
+                    showLogsModalFlash(`加载日志出错: ${error.message}`, 'error');
+                    if(viewLogsModal.querySelector('#logs-table')) viewLogsModal.querySelector('#logs-table').style.display = 'none'; // Hide table on error
+                }
+            }
+
+            // --- Define ALL Subscription Management Functions First ---
+            function showEditModalFlash(message, type = 'error') { 
                 if (!editModalFlashMessagesDiv) return;
                 const bgColor = type === 'error' ? '#f8d7da' : (type === 'success' ? '#d1e7dd' : '#fff3cd');
                 const textColor = type === 'error' ? '#842029' : (type === 'success' ? '#0f5132' : '#664d03');
@@ -836,12 +1153,15 @@
                 setTimeout(() => { editModalFlashMessagesDiv.innerHTML = ''; }, 5000);
             }
 
-            function renderEditFormInModal(config, allGroups, modalContentArea) { /* ... definition ... */ 
+            function renderEditFormInModal(config, allGroups, modalContentArea) { 
                 const freq = config.distribution_frequency;
                 let dayLabel = '发放日期/星期:'; let dayPlaceholder = ''; let dayHintText = ''; let dayInputType = 'number';
                 if (freq === 'weekly') { dayLabel = '发放星期 (0-6):'; dayPlaceholder = '0-6 (周一到周日)'; dayHintText = '0=周一, ..., 6=周日';}
                 else if (freq === 'monthly') { dayLabel = '发放日期 (1-31):'; dayPlaceholder = '1-31'; dayHintText = '输入月份中的日期 (1-31)';}
                 else { dayLabel = '发放日期 (每日无需填写):'; dayInputType = 'hidden'; }
+                
+                const initialSelectedGroupIds = new Set(config.target_groups.map(g => g.id));
+
                 let formHtml = `
                     <form id="form-edit-sub-modal-${config.id}" data-config-id="${config.id}" class="subscription-actual-edit-form">
                         <div class="form-group"><label for="sub-name-modal-${config.id}">名称:</label><input type="text" id="sub-name-modal-${config.id}" name="name" value="${config.name}" required class="form-control" style="width:100%"></div>
@@ -849,7 +1169,24 @@
                         <div class="form-group sub-day-group" id="sub-day-group-modal-${config.id}" style="display: ${freq === 'daily' ? 'none' : 'block'};"><label for="sub-day-modal-${config.id}" id="sub-day-label-modal-${config.id}">${dayLabel}</label><input type="${dayInputType}" id="sub-day-modal-${config.id}" name="distribution_day" value="${config.distribution_day || ''}" placeholder="${dayPlaceholder}" class="form-control" style="width:100%"><small id="sub-day-hint-modal-${config.id}" style="display:block; margin-top:4px; font-size:0.8em; color:#666;">${dayHintText}</small></div>
                         <div class="form-group"><label for="sub-time-modal-${config.id}">发放时间 (HH:MM):</label><input type="time" id="sub-time-modal-${config.id}" name="distribution_time" value="${config.distribution_time || '00:00'}" required class="form-control" style="width:100%"></div>
                         <div class="form-group"><label for="sub-points-modal-${config.id}">发放点数:</label><input type="number" id="sub-points-modal-${config.id}" name="points_to_distribute" value="${config.points_to_distribute}" required min="0" class="form-control" style="width:100%"></div>
-                        <div class="form-group"><label for="sub-target-groups-modal-${config.id}">目标用户组 (按住 Ctrl/Cmd 多选):</label><select id="sub-target-groups-modal-${config.id}" name="target_group_ids" multiple class="form-control" style="width:100%; height: 120px;">${allGroups.map(group => `<option value="${group.id}" ${config.target_groups.some(tg => tg.id === group.id) ? 'selected' : ''}>${group.name}</option>`).join('')}</select></div>
+                        
+                        <div class="form-group">
+                            <label>目标用户组:</label>
+                            <div class="target-groups-manager" id="target-groups-manager-${config.id}">
+                                <div class="selected-groups-container" id="selected-groups-container-${config.id}">
+                                    <!-- Selected groups will be rendered here by JS -->
+                                </div>
+                                <div class="add-group-to-sub-controls">
+                                    <button type="button" class="btn-toggle-available-groups" id="btn-toggle-available-groups-${config.id}">
+                                        <i class="fas fa-plus-circle"></i> 添加用户组
+                                    </button>
+                                    <div class="available-groups-dropdown" id="available-groups-dropdown-${config.id}">
+                                        <!-- Available groups will be rendered here by JS -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="form-group"><label for="sub-is-active-modal-${config.id}" style="display: inline-flex; align-items: center; font-weight: normal;"><input type="checkbox" id="sub-is-active-modal-${config.id}" name="is_active" ${config.is_active ? 'checked' : ''} style="width: auto; margin-right: 8px; margin-bottom: 0;">启用此订阅</label></div>
                         <button type="submit" class="form-button">保存更改</button>
                         <button type="button" class="action-btn btn-cancel-edit-sub-modal" style="margin-left: 10px;">取消</button>
@@ -862,7 +1199,85 @@
                 const dayLabelEl = editForm.querySelector(`#sub-day-label-modal-${config.id}`);
                 const dayInputEl = editForm.querySelector(`#sub-day-modal-${config.id}`);
                 const dayHintEl = editForm.querySelector(`#sub-day-hint-modal-${config.id}`);
-                function updateDayFieldBasedOnFrequencyModal() { /* ... as defined before ... */ 
+                
+                // --- Target Group Manager JS --- 
+                const groupManagerElement = document.getElementById(`target-groups-manager-${config.id}`);
+                const selectedContainer = document.getElementById(`selected-groups-container-${config.id}`);
+                const toggleAvailableButton = document.getElementById(`btn-toggle-available-groups-${config.id}`);
+                const availableDropdown = document.getElementById(`available-groups-dropdown-${config.id}`);
+                
+                groupManagerElement.currentSelectedGroupIds = new Set(initialSelectedGroupIds);
+
+                function renderSelectedGroupsUI() {
+                    selectedContainer.innerHTML = ''; 
+                    if (groupManagerElement.currentSelectedGroupIds.size === 0) {
+                        selectedContainer.innerHTML = '<span class="no-groups-message">尚未选择用户组</span>';
+                        return;
+                    }
+                    groupManagerElement.currentSelectedGroupIds.forEach(groupId => {
+                        const group = allGroups.find(g => g.id === groupId);
+                        if (group) {
+                            const item = document.createElement('div');
+                            item.className = 'selected-group-item';
+                            item.innerHTML = `<span>${group.name}</span><button type="button" class="remove-group-from-sub-btn" data-group-id="${group.id}">&times;</button>`;
+                            item.querySelector('.remove-group-from-sub-btn').addEventListener('click', function() {
+                                groupManagerElement.currentSelectedGroupIds.delete(group.id);
+                                renderSelectedGroupsUI();
+                                renderAvailableGroupsDropdown(); 
+                            });
+                            selectedContainer.appendChild(item);
+                        }
+                    });
+                }
+
+                function renderAvailableGroupsDropdown() {
+                    availableDropdown.innerHTML = ''; 
+                    const available = allGroups.filter(g => !groupManagerElement.currentSelectedGroupIds.has(g.id));
+                    if (available.length === 0) {
+                        availableDropdown.innerHTML = '<div class="no-groups-message" style="padding: 8px 12px; text-align:left;">所有组均已添加或无可用组</div>';
+                        return;
+                    }
+                    available.forEach(group => {
+                        const item = document.createElement('div');
+                        item.className = 'available-group-item';
+                        item.textContent = group.name;
+                        item.dataset.groupId = group.id;
+                        item.addEventListener('click', function() {
+                            groupManagerElement.currentSelectedGroupIds.add(group.id);
+                            renderSelectedGroupsUI();
+                            renderAvailableGroupsDropdown();
+                            availableDropdown.style.display = 'none'; 
+                        });
+                        availableDropdown.appendChild(item);
+                    });
+                }
+
+                toggleAvailableButton.addEventListener('click', function(event) {
+                    event.stopPropagation(); 
+                    const isHidden = availableDropdown.style.display === 'none';
+                    if (isHidden) {
+                        renderAvailableGroupsDropdown(); 
+                        availableDropdown.style.display = 'block';
+                    } else {
+                        availableDropdown.style.display = 'none';
+                    }
+                });
+
+                const clickOutsideHandler = function(event) {
+                    if (availableDropdown.style.display === 'block' && 
+                        !availableDropdown.contains(event.target) && 
+                        event.target !== toggleAvailableButton && 
+                        !toggleAvailableButton.contains(event.target)) {
+                       availableDropdown.style.display = 'none';
+                    }
+                };
+                document.addEventListener('click', clickOutsideHandler );
+                
+                renderSelectedGroupsUI();
+
+                // --- End Target Group Manager JS ---
+
+                function updateDayFieldBasedOnFrequencyModal() { 
                      const currentFreq = freqSelect.value;
                      if (currentFreq === 'daily') { dayGroupDiv.style.display = 'none'; dayInputEl.type = 'hidden'; dayInputEl.value = ''; dayHintEl.textContent = ''; }
                      else { dayGroupDiv.style.display = 'block'; dayInputEl.type = 'number';
@@ -874,11 +1289,19 @@
                 editForm.querySelector('.btn-cancel-edit-sub-modal').addEventListener('click', () => {
                     if(editSubscriptionModal) editSubscriptionModal.style.display = 'none';
                     modalContentArea.innerHTML = '';
+                    document.removeEventListener('click', clickOutsideHandler); // Clean up global listener
                 });
-                editForm.addEventListener('submit', async function(event) { /* ... form submission logic ... */ 
+                editForm.addEventListener('submit', async function(event) { 
                     event.preventDefault();
                     const formData = new FormData(this);
-                    const targetGroupIds = Array.from(formData.getAll('target_group_ids')).map(id => parseInt(id));
+                    // const targetGroupIds = Array.from(formData.getAll('target_group_ids')).map(id => parseInt(id)); // OLD way from select multiple
+                    
+                    // New way: Get target_group_ids from the JavaScript-managed state for the custom selector
+                    // Ensure this state (e.g., a Set of IDs) is accessible here. 
+                    // For simplicity, let's assume it's stored on a property of the manager div or globally scoped for this modal instance.
+                    const groupManagerElement = document.getElementById(`target-groups-manager-${config.id}`);
+                    const selectedGroupIds = groupManagerElement && groupManagerElement.currentSelectedGroupIds ? Array.from(groupManagerElement.currentSelectedGroupIds) : [];
+
                     const payload = {
                         name: formData.get('name'),
                         distribution_frequency: formData.get('distribution_frequency'),
@@ -886,7 +1309,7 @@
                         distribution_time: formData.get('distribution_time'),
                         points_to_distribute: parseInt(formData.get('points_to_distribute')),
                         is_active: formData.get('is_active') === 'on',
-                        target_group_ids: targetGroupIds
+                        target_group_ids: selectedGroupIds // Use the new source for group IDs
                     };
                     try {
                         const response = await fetch(`/user/subscription-configs/${config.id}`, {
@@ -1003,26 +1426,74 @@
                 });
             }
 
-            async function loadSubscriptionConfigs() { /* ... definition ... */ 
+            async function loadSubscriptionConfigs() { 
                 if (!subPanelContent) return;
                 console.log("loadSubscriptionConfigs called");
-                subPanelContent.innerHTML = '<p style="padding:10px;">正在加载订阅组配置...</p>'; 
+                
                 let panelHtml = `
-                    <div style="margin-bottom: 15px; padding: 0 20px; /* Match panel-actual-content padding */">
+                    <div style="margin-bottom: 15px; padding: 0 20px; display: flex; justify-content: space-between; align-items: center;">
                         <button id="btn-create-new-subscription" class="form-button">
                             <i class="fas fa-plus-circle"></i> 新建订阅组
                         </button>
+                        <button id="btn-view-subscription-logs" class="action-btn" style="background-color: #6c757d; color:white; border-color: #6c757d;">
+                            <i class="fas fa-history"></i> 查看日志
+                        </button>
+                        <button id="btn-debug-next-run" class="action-btn" title="显示下次任务运行时间" style="background-color: #ffc107; color:#212529; border-color:#ffc107;">
+                            <i class="fas fa-stopwatch"></i> 调试下次运行
+                        </button>
                     </div>
                     <div id="subscription-config-list-container" style="padding: 0 20px;">
+                        <p style="padding:10px;">正在加载订阅组配置...</p>
                     </div>
                 `;
                 subPanelContent.innerHTML = panelHtml;
                 console.log("Subscription panel HTML structure with button set.");
                 const btnCreateNewSubscription = document.getElementById('btn-create-new-subscription');
+                const btnViewLogs = document.getElementById('btn-view-subscription-logs'); // Get new button
+                const btnDebugNextRun = document.getElementById('btn-debug-next-run'); // Get debug button
+                
                 if(btnCreateNewSubscription) {
                     btnCreateNewSubscription.addEventListener('click', handleCreateNewSubscription);
-                    console.log("Event listener for create new subscription button attached.");
                 }
+                if(btnViewLogs) { 
+                    btnViewLogs.addEventListener('click', function() {
+                        openViewLogsModal(); 
+                    });
+                }
+                if(btnDebugNextRun) { // Add listener for debug button
+                    btnDebugNextRun.addEventListener('click', async function() {
+                        btnDebugNextRun.disabled = true;
+                        btnDebugNextRun.textContent = '查询中...';
+                        try {
+                            const response = await fetch('/user/next-distribution-time');
+                            const data = await response.json();
+                            if (!response.ok) {
+                                throw new Error(data.error || data.message || `查询失败: ${response.status}`);
+                            }
+                            if (data.next_run_time) {
+                                const nextRunDate = new Date(data.next_run_time);
+                                const now = new Date();
+                                const diffSeconds = Math.round((nextRunDate - now) / 1000);
+
+                                if (diffSeconds > 0) {
+                                    const minutes = Math.floor(diffSeconds / 60);
+                                    const seconds = diffSeconds % 60;
+                                    alert(`下次任务将在大约 ${minutes} 分 ${seconds} 秒后运行 (${nextRunDate.toLocaleString()})`);
+                                } else {
+                                    alert(`下次任务时间 (${nextRunDate.toLocaleString()}) 似乎已过。请检查任务状态或等待下一分钟。`);
+                                }
+                            } else {
+                                alert(data.message || "无法获取下次运行时间。");
+                            }
+                        } catch (error) {
+                            alert(`查询下次运行时间时出错: ${error.message}`);
+                        }
+                        btnDebugNextRun.disabled = false;
+                        // Restore button text with icon if needed, otherwise just text
+                        btnDebugNextRun.innerHTML = '<i class="fas fa-stopwatch"></i> 调试下次运行'; 
+                    });
+                }
+
                 const listContainer = document.getElementById('subscription-config-list-container');
                 try {
                     const response = await fetch('/user/subscription-configs');
@@ -1082,11 +1553,64 @@
                     if(editModalFlashMessagesDiv) editModalFlashMessagesDiv.innerHTML = '';
                 });
             }
+            // Log Viewer Modal Close Listeners & Clear Logic
+            if (closeLogsModalBtn) {
+                closeLogsModalBtn.addEventListener('click', () => {
+                    if (viewLogsModal) viewLogsModal.style.display = 'none';
+                });
+            }
+            if (btnShowClearLogConfirm) {
+                btnShowClearLogConfirm.addEventListener('click', () => {
+                    if(clearLogConfirmArea) clearLogConfirmArea.style.display = 'block';
+                    btnShowClearLogConfirm.style.display = 'none';
+                });
+            }
+            if (btnCancelClearLogs) {
+                btnCancelClearLogs.addEventListener('click', () => {
+                    if(clearLogConfirmArea) clearLogConfirmArea.style.display = 'none';
+                    if(btnShowClearLogConfirm) btnShowClearLogConfirm.style.display = 'inline-block';
+                    if(adminPasswordInput) adminPasswordInput.value = '';
+                    if(logsModalFlashMessagesDiv) logsModalFlashMessagesDiv.innerHTML = ''; // Clear flash on cancel
+                });
+            }
+            if (btnConfirmClearLogs) {
+                btnConfirmClearLogs.addEventListener('click', async () => {
+                    if (!adminPasswordInput || !adminPasswordInput.value) {
+                        showLogsModalFlash('请输入管理员密码！', 'error');
+                        return;
+                    }
+                    const password = adminPasswordInput.value;
+                    try {
+                        const response = await fetch('/user/clear-subscription-logs', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({ admin_password: password })
+                        });
+                        const result = await response.json();
+                        if (!response.ok) {
+                            throw new Error(result.error || `清除日志失败: ${response.status}`);
+                        }
+                        showLogsModalFlash(result.message || '日志已成功清除！', 'success');
+                        await openViewLogsModal(); // Refresh log view (should be empty)
+                        // No need to explicitly hide clearLogConfirmArea, openViewLogsModal will reset it.
+                    } catch (error) {
+                        showLogsModalFlash(error.message, 'error');
+                    }
+                    if(adminPasswordInput) adminPasswordInput.value = ''; // Clear password after attempt
+                });
+            }
+
             window.addEventListener('click', (event) => {
                 if (event.target == editSubscriptionModal) {
                     editSubscriptionModal.style.display = 'none';
                     if(editSubscriptionFormContentArea) editSubscriptionFormContentArea.innerHTML = '';
                     if(editModalFlashMessagesDiv) editModalFlashMessagesDiv.innerHTML = '';
+                }
+                if (event.target == viewLogsModal) { // Close log modal on backdrop click
+                    if (viewLogsModal) viewLogsModal.style.display = 'none';
                 }
                 // Also handle invitation modal backdrop click if needed
                 const createInvModalCheck = document.getElementById('create-invitation-modal');
@@ -1095,9 +1619,130 @@
                 }
             });
 
+            // Function to load and initialize the timezone selector
+            async function loadTimezoneSelector() {
+                const selector = document.getElementById('timezone-selector');
+                if (!selector) return;
+
+                selector.disabled = true;
+                selector.innerHTML = '<option value="">加载时区...</option>';
+
+                try {
+                    // Fetch available timezones and current setting concurrently
+                    const [tzResponse, currentTzResponse] = await Promise.all([
+                        fetch('/user/app-settings/timezones'),
+                        fetch('/user/app-settings/distribution-timezone')
+                    ]);
+
+                    if (!tzResponse.ok) throw new Error('无法加载可用时区列表');
+                    if (!currentTzResponse.ok) throw new Error('无法加载当前时区设置');
+
+                    const timezones = await tzResponse.json();
+                    const currentSetting = await currentTzResponse.json();
+                    const currentTimezone = currentSetting.timezone;
+
+                    selector.innerHTML = ''; // Clear loading message
+                    timezones.forEach(tz => {
+                        const option = document.createElement('option');
+                        option.value = tz;
+                        option.textContent = tz;
+                        if (tz === currentTimezone) {
+                            option.selected = true;
+                        }
+                        selector.appendChild(option);
+                    });
+                    selector.disabled = false;
+
+                } catch (error) {
+                    console.error("Error loading timezone selector:", error);
+                    selector.innerHTML = '<option value="">加载失败</option>';
+                    alert("加载时区选择器失败: " + error.message);
+                }
+            }
+
+            // Function to handle timezone selection change
+            async function handleTimezoneChange(event) {
+                const selector = event.target;
+                const newTimezone = selector.value;
+                selector.disabled = true; // Disable during save
+
+                try {
+                    const response = await fetch('/user/app-settings/distribution-timezone', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ timezone: newTimezone })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.error || '保存时区设置失败');
+                    }
+                    alert(result.message || '时区设置已更新！'); // Simple feedback
+                    // Optionally, trigger a page reload or update other elements if needed
+
+                } catch (error) {
+                    console.error("Error saving timezone:", error);
+                    alert("保存时区设置失败: " + error.message);
+                    // Revert selector to previous value? Might be complex, simple alert for now.
+                    await loadTimezoneSelector(); // Reload selector to show current state from server
+                } finally {
+                    selector.disabled = false;
+                }
+            }
+
+            // Initialize Timezone Selector on page load
+            loadTimezoneSelector();
+            const timezoneSelectorElement = document.getElementById('timezone-selector');
+            if (timezoneSelectorElement) {
+                timezoneSelectorElement.addEventListener('change', handleTimezoneChange);
+            }
+
         }); // End of the SINGLE main DOMContentLoaded listener
 
     </script>
+
+    <!-- Log Viewer Modal -->
+    <div id="view-logs-modal" class="modal" style="display:none; position: fixed; z-index: 1004; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7);"> {/* Slightly darker backdrop */}
+        <div class="modal-content" style="margin: 5% auto; padding: 25px; border: 1px solid #1c1e22; width: 90%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+            <span class="close-modal-btn" id="close-logs-modal-btn" style="float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 0.8;">&times;</span>
+            <h2>订阅点数发放日志</h2>
+            <!-- <pre id="logs-content-area">正在加载日志...</pre> -->
+            <div id="logs-table-container" style="max-height: 60vh; overflow-y: auto;">
+                <table id="logs-table" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>时间戳</th>
+                            <th>配置名称</th>
+                            <th>用户组</th>
+                            <th>用户名</th>
+                            <th>发放点数</th>
+                            <th>发放后余额</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Log rows will be inserted here by JS -->
+                    </tbody>
+                </table>
+                <p id="logs-loading-message" style="text-align: center; padding: 20px;">正在加载日志...</p>
+            </div>
+            <div id="logs-modal-flash-messages" style="margin-top: 15px;"></div>
+
+            <div id="clear-logs-section">
+                <hr style="border-color: #3e4451; margin: 20px 0;">
+                <button type="button" id="btn-show-clear-log-confirm" class="action-btn delete-btn">清除日志记录</button>
+                <div id="clear-log-confirm-area" style="display:none; margin-top:10px; padding:15px; background-color: #31363f; border-radius:4px; border: 1px solid #3e4451;">
+                    <label for="admin-password-clear-logs">请输入管理员密码确认清除:</label>
+                    <input type="password" id="admin-password-clear-logs" name="admin_password">
+                    <div style="margin-top:10px;">
+                        <button type="button" id="btn-confirm-clear-logs" class="action-btn delete-btn">确认清除</button>
+                        <button type="button" id="btn-cancel-clear-logs" class="action-btn" style="margin-left:10px;">取消</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html> 

@@ -1,0 +1,50 @@
+[
+    {
+        "timestamp": "2025-05-07T15:50:18.869353Z",
+        "subscription_config_id": 1,
+        "subscription_config_name": "默认订阅组 1",
+        "target_group_id": 1,
+        "target_group_name": "每月100点",
+        "user_id": 2,
+        "username": "user",
+        "points_distributed": 10,
+        "balance_before": 170,
+        "balance_after": 180
+    },
+    {
+        "timestamp": "2025-05-07T15:50:18.869353Z",
+        "subscription_config_id": 1,
+        "subscription_config_name": "默认订阅组 1",
+        "target_group_id": 1,
+        "target_group_name": "每月100点",
+        "user_id": 3,
+        "username": "user1",
+        "points_distributed": 10,
+        "balance_before": 0,
+        "balance_after": 10
+    },
+    {
+        "timestamp": "2025-05-07T15:50:58.365982Z",
+        "subscription_config_id": 1,
+        "subscription_config_name": "默认订阅组 1",
+        "target_group_id": 1,
+        "target_group_name": "每月100点",
+        "user_id": 2,
+        "username": "user",
+        "points_distributed": 10,
+        "balance_before": 180,
+        "balance_after": 190
+    },
+    {
+        "timestamp": "2025-05-07T15:50:58.365982Z",
+        "subscription_config_id": 1,
+        "subscription_config_name": "默认订阅组 1",
+        "target_group_id": 1,
+        "target_group_name": "每月100点",
+        "user_id": 3,
+        "username": "user1",
+        "points_distributed": 10,
+        "balance_before": 10,
+        "balance_after": 20
+    }
+]
