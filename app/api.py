@@ -824,9 +824,16 @@ def generate_prompt_with_template():
                 print(f"User {user_id_for_log}: Error processing template {template_id}: {e}")
                 return jsonify({'error': f'Error processing template: {e}'}), 500
         else:
-            final_prompt = input_data.get('提示词', '')
-            if not final_prompt:
-                 return jsonify({'error': 'No template selected and no prompt provided in input_data using key "提示词"'}), 400
+            user_core_prompt = input_data.get('提示词', '')
+            markdown_preference_instructions = input_data.get('markdown指令', '')
+
+            if not user_core_prompt:
+                return jsonify({'error': 'No "提示词" provided and no template selected.'}), 400
+
+            if markdown_preference_instructions:
+                final_prompt = f"{user_core_prompt}\n\n{markdown_preference_instructions}"
+            else:
+                final_prompt = user_core_prompt
 
         # --- 新增：打印最终提示词到后台日志 ---
         print(f"\n--- User {user_id_for_log} | Final Prompt for AI Service ID {ai_config.id} ---")

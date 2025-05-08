@@ -998,18 +998,21 @@
             // Determine the prompt: use override if provided, otherwise use input field
             const basePrompt = promptOverride !== null ? promptOverride : promptInput.value;
             
-            // --- Prepend Markdown template if enabled ---
-            let finalPromptToSend = basePrompt;
-            if (userPrefEnableMarkdown && userPrefMarkdownTemplate && userPrefMarkdownTemplate.trim()) {
-                console.log("Markdown mode enabled, prepending Markdown template.");
-                finalPromptToSend = userPrefMarkdownTemplate.trim() + '\n\n' + basePrompt; // Add two newlines for separation
-            }
-            // --- End Markdown prepending ---
-            
+            // --- 恢复：将 basePrompt 和 userPrefMarkdownTemplate 合并为 finalPromptToSend ---
+            // let finalPromptToSend = basePrompt; // This was the old combined prompt
+            // if (userPrefEnableMarkdown && userPrefMarkdownTemplate && userPrefMarkdownTemplate.trim()) {
+            // console.log("Markdown mode enabled, appending Markdown template to basePrompt.");
+            // finalPromptToSend = basePrompt + '\\n\\n' + userPrefMarkdownTemplate.trim();
+            // }
+            // --- 结束恢复 ---
+
+            // 恢复原始日志，并确保打印的是合并后的 finalPromptToSend
             console.log(`Cursor Index for generation: ${initialInsertionPoint}`);
-            console.log(`Using final prompt: ${finalPromptToSend.substring(0,100)}...`); // Log the final prompt
-            console.log(`前文 (length ${前文.length}): \"${前文.substring(0, 50)}...\"`);
-            console.log(`后文 (length ${后文.length}): \"${后文.substring(0, 50)}...\"`);
+            // console.log(`Using final prompt (to be processed by backend template): ${finalPromptToSend.substring(0,150)}...`);
+            console.log(`Core prompt being sent: ${basePrompt.substring(0,150)}...`);
+            console.log(`Markdown instruction being sent: ${ (userPrefEnableMarkdown && userPrefMarkdownTemplate && userPrefMarkdownTemplate.trim()) ? userPrefMarkdownTemplate.trim().substring(0,100) : '(empty)'}...`);
+            console.log(`前文 (length ${前文.length}): \\"${前文.substring(0, 50)}...\\"`);
+            console.log(`后文 (length ${后文.length}): \\"${后文.substring(0, 50)}...\\"`);
 
             const 字数 = parseInt(wordCountInput.value, 10) || 500;
             const 风格 = styleInput.value || '默认';
@@ -1026,17 +1029,32 @@
                 });
             }
 
+            // --- 恢复：input_data['提示词'] 使用合并后的 finalPromptToSend ---
             const requestData = {
-                template_id: templateId, // This might be confusing now, maybe rename or adjust logic if template_id implies a specific format
-                input_data: { '前文': 前文, '后文': 后文, '提示词': finalPromptToSend, '字数': 字数, '风格': 风格, '设定': 设定 } // Use finalPromptToSend here
+                template_id: templateId, 
+                input_data: { 
+                    '前文': 前文, 
+                    '后文': 后文, 
+                    '提示词': basePrompt, // 使用原始 basePrompt
+                    '字数': 字数, 
+                    '风格': 风格, 
+                    '设定': 设定,
+                    'markdown指令': (userPrefEnableMarkdown && userPrefMarkdownTemplate && userPrefMarkdownTemplate.trim()) ? userPrefMarkdownTemplate.trim() : ''
+                    // 'markdown指令' 字段不再从这里单独发送，其内容已合并入 finalPromptToSend (如果启用)
+                    // 后端 utils.py 中的 process_prompt_template 会处理模板中的 @[markdown] 占位符
+                    // 如果 userPrefMarkdownTemplate 为空或未启用，则 @[markdown] 会被替换为空字符串
+                }
             };
+            // --- 结束恢复 ---
+            
             if (selectedAiServiceId && selectedAiServiceId !== "") { 
                 requestData.ai_service_config_id = parseInt(selectedAiServiceId, 10);
             } else {
                 console.log("AI Service: Using user's default setting.");
             }
 
-            console.log("准备发送到 /api/generate-with-template 的数据:", JSON.stringify(requestData, null, 2));
+            console.log("准备发送到 /api/generate-with-template 的 requestData.input_data['提示词']:", requestData.input_data['提示词'].substring(0,200) + "...");
+            console.log("准备发送到 /api/generate-with-template 的 requestData.input_data['markdown指令']:", requestData.input_data['markdown指令'].substring(0,100) + "...");
 
             try {
                 const response = await fetch('/api/generate-with-template', {
@@ -1085,24 +1103,44 @@
 
                             // --- 流结束后处理 ---
                             if (accumulatedText) {
-                                const finalLength = accumulatedText.length; 
-                                const streamRange = { index: initialInsertionPoint, length: finalLength };
-                                
-                                // 修改开始：移除复杂的 Markdown 自动替换逻辑
-                                // 现在，无论是 Markdown 还是纯文本，都是在上面的 while 循环中被实时插入并格式化的。
-                                // 流结束后，我们不再执行删除和替换HTML的操作。
-                                if (userPrefEnableMarkdown) {
-                                    console.log("Markdown enabled. Raw Markdown text has been streamed with live formatting.");
-                                } else {
-                                    console.log("Markdown disabled. Plain text has been streamed with live formatting.");
+                                const streamRange = { index: initialInsertionPoint, length: accumulatedText.length };
+
+                                // 1. 清除先前实时流式文本的临时高亮
+                                quill.formatText(streamRange.index, streamRange.length, 'background', false, 'silent');
+                                quill.formatText(streamRange.index, streamRange.length, 'color', false, 'silent');
+
+                                // 2. 从编辑器中删除原始的流式文本
+                                quill.deleteText(streamRange.index, streamRange.length, 'silent');
+
+                                // 3. 将累积的原始文本 (accumulatedText) 解析为 Markdown HTML
+                                let generatedHtml = '';
+                                try {
+                                    generatedHtml = marked.parse(accumulatedText);
+                                    console.log("Markdown 文本成功解析为 HTML:\n", generatedHtml.substring(0, 200) + "...");
+                                } catch (parseError) {
+                                    console.error("Markdown 解析失败，将插入原始文本:", parseError);
+                                    generatedHtml = accumulatedText; // 如果解析失败，则退回使用原始文本 (基本不会发生，marked会处理纯文本)
                                 }
-                                // 修改结束
+
+                                // 4. 将解析后的 HTML (或原始文本) 重新插入编辑器
+                                quill.clipboard.dangerouslyPasteHTML(streamRange.index, generatedHtml, 'user');
+
+                                // 5. 对新插入的、已渲染的内容重新应用高亮格式
+                                // 注意：HTML渲染后的实际长度可能与原始文本不同，但高亮通常基于原始文本范围视觉上可接受
+                                if (userPrefBgColor) {
+                                    quill.formatText(streamRange.index, accumulatedText.length, 'background', userPrefBgColor, 'user');
+                                }
+                                if (userPrefFontColor) {
+                                    quill.formatText(streamRange.index, accumulatedText.length, 'color', userPrefFontColor, 'user');
+                                }
                                 
-                                // Update range record and cursor position (use original length)
-                                lastGeneratedContentRange = { index: streamRange.index, length: streamRange.length };
-                                quill.setSelection(streamRange.index + streamRange.length);
+                                // 更新 lastGeneratedContentRange 以便重试功能可以正确删除渲染后的内容
+                                // 长度仍使用 accumulatedText.length，因为这是AI原始内容的长度，重试时AI基于此调整
+                                lastGeneratedContentRange = { index: streamRange.index, length: accumulatedText.length };
+                                quill.setSelection(streamRange.index + accumulatedText.length); // 将光标移至渲染内容之后
+                                
+                                console.log('流式生成成功。内容已移除并作为Markdown重新插入。');
                             }
-                            console.log('流式生成成功。数据已按简化模式处理。'); // 更新日志信息
                         }
                     } else { // Non-streaming path (Keep existing logic: directly insert parsed HTML if MD enabled)
                         console.log('接收到成功的非流式响应，尝试解析 JSON...');
