@@ -808,6 +808,42 @@
         </details>
         <!-- End New Invitation Code Management Section -->
 
+        <!-- New API Call Log Section -->
+        <details class="collapsible-section" id="api-call-log-section">
+            <summary><i class="fas fa-clipboard-list"></i> API 调用日志</summary>
+            <div class="collapsible-content">
+                <div id="api-call-log-controls" style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                    <button id="btn-refresh-api-logs" class="action-btn">
+                        <i class="fas fa-sync-alt"></i> 刷新日志
+                    </button>
+                    <div id="api-log-pagination-controls">
+                        <!-- Pagination buttons will be added here by JS -->
+                    </div>
+                </div>
+                <div id="api-call-log-table-container" style="overflow-x: auto;">
+                    <table id="api-call-logs-table" class="table" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>时间戳</th>
+                                <th>用户名</th>
+                                <th>AI 服务</th>
+                                <th>系统服务?</th>
+                                <th>Tokens 消耗</th>
+                                <th>点数扣除</th>
+                                <th>提示长度</th>
+                            </tr>
+                        </thead>
+                        <tbody id="api-call-logs-tbody">
+                            <!-- Log rows will be loaded here by JavaScript -->
+                            <tr><td colspan="8" style="text-align:center;">正在加载日志...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+        <!-- End New API Call Log Section -->
+
     </div> {# End .container #}
 
     {# New Right Collapsible Panel for Subscription Group Management - Positioned independently #}
@@ -1058,6 +1094,54 @@
         // Main DOMContentLoaded listener that wraps ALL dynamic functionality for user_manage.html
         document.addEventListener('DOMContentLoaded', function() {
 
+            // Helper function to format timestamp string with selected timezone
+            function formatDateWithSelectedTimezone(timestampString) {
+                if (!timestampString) return 'N/A';
+                // console.log(`[TZ_DEBUG] Input timestamp: ${timestampString}`); 
+                try {
+                    let parsableTimestamp = timestampString;
+                    if (!timestampString.endsWith('Z') && timestampString.includes('T')) {
+                        parsableTimestamp += 'Z';
+                        // console.log(`[TZ_DEBUG] Appended 'Z' for UTC parsing: ${parsableTimestamp}`);
+                    }
+                    const date = new Date(parsableTimestamp);
+                    
+                    if (isNaN(date.getTime())) { 
+                        console.warn(`Invalid date parsed from: ${parsableTimestamp}`); // Keep this warning
+                        return 'N/A'; 
+                    }
+                    // console.log(`[TZ_DEBUG] Parsed date (UTC): ${date.toISOString()}`);
+
+                    const timezoneSelector = document.getElementById('timezone-selector');
+                    const selectedTimezone = timezoneSelector ? timezoneSelector.value : null;
+                    // console.log(`[TZ_DEBUG] Selected timezone from dropdown: ${selectedTimezone}`); 
+
+                    const options = {
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit',
+                        hour12: false 
+                    };
+
+                    let formattedDate;
+                    if (selectedTimezone && selectedTimezone.trim() !== "") {
+                        try {
+                            formattedDate = date.toLocaleString('zh-CN', { ...options, timeZone: selectedTimezone });
+                        } catch (e) {
+                            console.warn(`Failed to format with selectedTimezone "${selectedTimezone}". Error: ${e.message}. Falling back.`); // Keep
+                            formattedDate = date.toLocaleString('zh-CN', options); 
+                        }
+                    } else {
+                        // console.log("[TZ_DEBUG] No specific timezone selected, using browser's default for zh-CN.");
+                        formattedDate = date.toLocaleString('zh-CN', options);
+                    }
+                    // console.log(`[TZ_DEBUG] Final formatted date for ${selectedTimezone || 'default'}: ${formattedDate}`); 
+                    return formattedDate;
+                } catch (error) {
+                    console.error("General error in formatDateWithSelectedTimezone:", error, timestampString); // Keep this error
+                    return 'N/A'; 
+                }
+            }
+
             // --- Define ALL Subscription Management Functions First ---
             const subscriptionPanel = document.getElementById('subscription-panel');
             const subPanelContent = subscriptionPanel ? subscriptionPanel.querySelector('.panel-actual-content') : null;
@@ -1124,7 +1208,7 @@
                         if(tableElement) tableElement.style.display = 'table'; // Show table
                         data.forEach(log => {
                             const row = logsTableBody.insertRow();
-                            row.insertCell().textContent = log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A';
+                            row.insertCell().textContent = formatDateWithSelectedTimezone(log.timestamp);
                             row.insertCell().textContent = log.subscription_config_name || 'N/A';
                             row.insertCell().textContent = log.target_group_name || 'N/A';
                             row.insertCell().textContent = log.username || 'N/A';
@@ -1563,7 +1647,7 @@
                             </thead>
                             <tbody>`;
                     codesArray.forEach(code => {
-                        const expiresAt = code.expires_at ? new Date(code.expires_at).toLocaleString() : '永不';
+                        const expiresAt = code.expires_at ? formatDateWithSelectedTimezone(code.expires_at) : '永不';
                         // const createdAt = new Date(code.created_at).toLocaleString(); // Removed as created_at is not in API response
                         const isValid = code.is_valid; 
                         const statusText = isValid ? '<span style="color: green;">有效</span>' : '<span style="color: red;">失效</span>';
@@ -1717,6 +1801,129 @@
             if (document.getElementById('invitation-code-section')) {
                  loadInvitationCodes();
             }
+
+            // --- API Call Log Section --- 
+            const apiCallLogSection = document.getElementById('api-call-log-section');
+            const apiCallLogsTbody = document.getElementById('api-call-logs-tbody');
+            const btnRefreshApiLogs = document.getElementById('btn-refresh-api-logs');
+            const apiLogPaginationControls = document.getElementById('api-log-pagination-controls');
+            let currentApiLogPage = 1;
+            const apiLogsPerPage = 20; // Should match backend default or be configurable
+
+            async function loadApiCallLogs(page = 1) {
+                if (!apiCallLogsTbody || !apiLogPaginationControls) return;
+                apiCallLogsTbody.innerHTML = `<tr><td colspan="8" style="text-align:center;"><i class="fas fa-spinner fa-spin"></i> 正在加载日志 (第 ${page} 页)...</td></tr>`;
+                currentApiLogPage = page;
+
+                try {
+                    // Pass page and per_page to the API
+                    const response = await userManageApiCall(`/api/admin/api-call-logs?page=${page}&per_page=${apiLogsPerPage}`);
+                    if (response && response.logs) {
+                        renderApiCallLogs(response.logs);
+                        renderApiLogPagination(response.total_pages, response.current_page);
+                    } else {
+                        apiCallLogsTbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:red;">加载日志失败: ${response ? response.error : '未知错误'}</td></tr>`;
+                        apiLogPaginationControls.innerHTML = ''; // Clear pagination on error
+                    }
+                } catch (error) {
+                    console.error("Error loading API call logs:", error);
+                    apiCallLogsTbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:red;">加载日志时发生客户端错误。</td></tr>`;
+                    apiLogPaginationControls.innerHTML = '';
+                }
+            }
+
+            function renderApiCallLogs(logs) {
+                apiCallLogsTbody.innerHTML = ''; // Clear previous logs or loading message
+                if (logs.length === 0) {
+                    apiCallLogsTbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">暂无 API 调用日志。</td></tr>`;
+                    return;
+                }
+                logs.forEach(log => {
+                    const row = apiCallLogsTbody.insertRow();
+                    row.insertCell().textContent = log.id;
+                    row.insertCell().textContent = formatDateWithSelectedTimezone(log.timestamp);
+                    row.insertCell().textContent = log.username;
+                    row.insertCell().textContent = log.ai_service_name || 'N/A';
+                    row.insertCell().textContent = log.is_system_service ? '是' : '否';
+                    row.insertCell().textContent = log.tokens_consumed;
+                    row.insertCell().textContent = log.points_deducted;
+                    row.insertCell().textContent = log.prompt_length || 'N/A';
+                });
+            }
+
+            function renderApiLogPagination(totalPages, currentPage) {
+                apiLogPaginationControls.innerHTML = '';
+                if (totalPages <= 1) return;
+
+                const maxPagesToShow = 5; // Max pagination buttons to show (excluding prev/next)
+                let startPage, endPage;
+
+                if (totalPages <= maxPagesToShow) {
+                    startPage = 1;
+                    endPage = totalPages;
+                } else {
+                    if (currentPage <= Math.ceil(maxPagesToShow / 2)) {
+                        startPage = 1;
+                        endPage = maxPagesToShow;
+                    } else if (currentPage + Math.floor(maxPagesToShow / 2) >= totalPages) {
+                        startPage = totalPages - maxPagesToShow + 1;
+                        endPage = totalPages;
+                    } else {
+                        startPage = currentPage - Math.floor(maxPagesToShow / 2);
+                        endPage = currentPage + Math.floor(maxPagesToShow / 2);
+                    }
+                }
+
+                // Previous Button
+                if (currentPage > 1) {
+                    const prevButton = document.createElement('button');
+                    prevButton.textContent = '上一页';
+                    prevButton.classList.add('action-btn');
+                    prevButton.addEventListener('click', () => loadApiCallLogs(currentPage - 1));
+                    apiLogPaginationControls.appendChild(prevButton);
+                }
+
+                // Page Number Buttons
+                for (let i = startPage; i <= endPage; i++) {
+                    const pageButton = document.createElement('button');
+                    pageButton.textContent = i;
+                    pageButton.classList.add('action-btn');
+                    if (i === currentPage) {
+                        pageButton.disabled = true;
+                        pageButton.style.fontWeight = 'bold';
+                        pageButton.style.backgroundColor = '#ccc'; // Highlight current page
+                    }
+                    pageButton.addEventListener('click', () => loadApiCallLogs(i));
+                    apiLogPaginationControls.appendChild(pageButton);
+                }
+
+                // Next Button
+                if (currentPage < totalPages) {
+                    const nextButton = document.createElement('button');
+                    nextButton.textContent = '下一页';
+                    nextButton.classList.add('action-btn');
+                    nextButton.addEventListener('click', () => loadApiCallLogs(currentPage + 1));
+                    apiLogPaginationControls.appendChild(nextButton);
+                }
+            }
+
+            if (apiCallLogSection) {
+                const summary = apiCallLogSection.querySelector('summary');
+                summary.addEventListener('click', () => {
+                    // Load logs only when the section is opened for the first time or if explicitly refreshed
+                    // Check if it's being opened (details[open] will be true after click if it was closed)
+                    // A slight delay to check the 'open' attribute after the click event finishes its default action.
+                    setTimeout(() => {
+                        if (apiCallLogSection.hasAttribute('open') && apiCallLogsTbody.children.length <= 1 && apiCallLogsTbody.textContent.includes('加载')) {
+                            loadApiCallLogs(1);
+                        }
+                    }, 0);
+                });
+            }
+            if (btnRefreshApiLogs) {
+                btnRefreshApiLogs.addEventListener('click', () => loadApiCallLogs(currentApiLogPage));
+            }
+            // --- End API Call Log Section ---
 
             // Subscription Panel Toggle Logic (Simplified)
             const panelToggleHandle = subscriptionPanel ? subscriptionPanel.querySelector('.panel-toggle-handle') : null;

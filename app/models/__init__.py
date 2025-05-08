@@ -21,6 +21,10 @@ from .group import Group
 from .prompt import PromptTemplate
 from .invitation_code import InvitationCode
 from .subscription_config import SubscriptionConfig, subscription_config_group_association
+# from .file_system_item import FileSystemItem # Potential problematic duplicate, now commented
+# from .prompt_template import PromptTemplate # Duplicate, now commented
+# from .ai_service import AIService # Duplicate, now commented
+from .api_call_log import ApiCallLog
 
 __all__ = [
     'User', 'UserRole', 'Role',
@@ -30,7 +34,9 @@ __all__ = [
     'PromptTemplate',
     'InvitationCode',
     'SubscriptionConfig',
-    'subscription_config_group_association'
+    'subscription_config_group_association',
+    'FileSystemItem', # Ensure this is correct based on where FileSystemItem is defined
+    'ApiCallLog'
 ] 
 # 文件: app/models/__init__.py
 # ... (可能存在的其他导入) ...

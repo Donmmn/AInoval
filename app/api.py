@@ -1,7 +1,7 @@
-from flask import Blueprint, jsonify, request, Response
+from flask import Blueprint, jsonify, request, Response, current_app
 from flask_login import login_required, current_user # 导入 login_required 和 current_user
 # 确保从 .models 包导入，依赖 __init__.py
-from .models import FileSystemItem, User, Group, PromptTemplate, AIService # 导入 User 模型和 Group 模型
+from .models import FileSystemItem, User, Group, PromptTemplate, AIService, ApiCallLog # 导入 ApiCallLog
 from . import db # db 通常从 app 包导入
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
@@ -10,6 +10,8 @@ from .ai_service import call_ai_service
 from .utils import process_prompt_template # 导入处理函数
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+TOKENS_PER_POINT = 100
 
 # --- 获取项目列表 ---
 @api_bp.route('/items', methods=['GET'])
@@ -726,78 +728,86 @@ def admin_get_user_prompt_templates():
 @api_bp.route('/generate-with-template', methods=['POST'])
 @login_required
 def generate_prompt_with_template():
-    user_id_for_log = current_user.id if hasattr(current_user, 'id') else 'anonymous'
-    
+    # --- 提前获取 App 实例和当前用户信息 --- 
+    app = current_app._get_current_object()
+    user_id = current_user.id
+    username = current_user.username
+    is_admin_flag = current_user.is_admin
+    user_id_for_log = user_id # Use the captured ID for logging
+
+    # 确保用户点数不为 None...
+    if current_user.is_authenticated and hasattr(current_user, 'points') and current_user.points is None:
+        current_user.points = 0
+        print(f"User {user_id_for_log}: Points initialized to 0 as it was None.")
+
     try:
+        # ... (AI Config lookup logic - remains the same, but use captured user_id for owner check if needed) ...
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
         template_id = data.get('template_id')
         input_data = data.get('input_data', {})
-        requested_ai_config_id = data.get('ai_service_config_id') # 可能为空字符串 ""
+        requested_ai_config_id = data.get('ai_service_config_id') 
 
-        # --- 确定要使用的 AI 服务配置 --- 
         ai_config = None
         error_message = None
         config_id_to_use = None
 
-        # 1. 处理请求的 ID (可能为空字符串)
+        # Determine config_id_to_use (logic remains the same)
         if requested_ai_config_id and str(requested_ai_config_id).isdigit():
             try:
                 config_id_to_use = int(requested_ai_config_id)
-                print(f"用户请求使用特定 AI 服务 ID: {config_id_to_use}")
             except (ValueError, TypeError):
-                print(f"无效的 AI 服务 ID 请求: {requested_ai_config_id}")
                 error_message = "无效的 AI 服务 ID"
         elif requested_ai_config_id == "" or requested_ai_config_id is None:
-            print("用户请求使用默认 AI 服务...")
-            # 2. 尝试获取用户设置的默认服务
+            # Use current_user here as it's still valid
             if current_user.is_authenticated and current_user.active_ai_service_id:
                 config_id_to_use = current_user.active_ai_service_id
-                print(f"使用用户默认 AI 服务 ID: {config_id_to_use}")
             else:
-                # 3. 尝试获取系统默认服务
-                print("用户未设置默认服务，尝试查找系统默认...")
                 system_default_config = AIService.query.filter_by(is_default=True, is_system_service=True).first()
                 if system_default_config:
                     config_id_to_use = system_default_config.id
-                    print(f"使用系统默认 AI 服务 ID: {config_id_to_use}")
                 else:
-                    print("未找到用户默认或系统默认 AI 服务")
                     error_message = "未配置默认 AI 服务"
         else:
-            # 其他非数字非空字符串的无效情况
-             print(f"无效的 AI 服务 ID 请求 (非数字非空): {requested_ai_config_id}")
              error_message = "无效的 AI 服务 ID"
-
-        # 4. 如果找到了要使用的 ID，则获取配置
+        
+        # Get ai_config (logic remains the same, uses config_id_to_use)
         if config_id_to_use and not error_message:
             ai_config = AIService.query.get(config_id_to_use)
             if not ai_config:
-                print(f"错误：无法找到 ID 为 {config_id_to_use} 的 AI 服务配置（即使已确定 ID）")
                 error_message = f"找不到 ID 为 {config_id_to_use} 的 AI 服务"
-            else:
-                 # 检查权限 (系统服务或用户拥有)
-                 user_owns = current_user.is_authenticated and ai_config.owner_id == current_user.id
+            else: # Check access permission using captured user_id
+                 user_owns = ai_config.owner_id == user_id # Use captured user_id
                  is_accessible = ai_config.is_system_service or user_owns
                  if not is_accessible:
-                     print(f"错误：用户 {user_id_for_log} 无权访问 AI 服务 {ai_config.id} ('{ai_config.name}')")
                      error_message = f"无权使用 AI 服务 '{ai_config.name}'"
 
-        # 5. 如果有错误，返回错误
         if error_message:
-            print(f"AI 服务配置查找失败: {error_message}")
-            return jsonify({'error': error_message}), 400 # Bad Request or appropriate code
-        
-        # --- 如果 ai_config 仍然是 None (极端情况，逻辑应避免)，也报错 ---
-        if not ai_config:
-             print("错误：在处理结束时 ai_config 仍然是 None，存在逻辑错误！")
+            print(f"User {user_id_for_log}: AI service config lookup failed: {error_message}")
+            return jsonify({'error': error_message}), 400
+        if not ai_config: 
+             print(f"User {user_id_for_log}: Error - ai_config is None after setup, aborting.")
              return jsonify({'error': '无法确定要使用的 AI 服务配置'}), 500
             
-        print(f"最终确定使用 AI 服务: ID={ai_config.id}, Name='{ai_config.name}', Streaming Enabled={ai_config.enable_streaming}")
+        print(f"User {user_id_for_log}: Determined to use AI Service: ID={ai_config.id}, Name='{ai_config.name}', Streaming={ai_config.enable_streaming}")
 
-        # --- 处理提示词模板 --- 
+        # --- 点数预检查 (使用 current_user.points 和 is_admin_flag) ---
+        MINIMUM_POINTS_REQUIRED = 1 
+        if not is_admin_flag: # Use the captured flag
+            # It's okay to use current_user.points here as context is still valid
+            user_points_to_check = current_user.points 
+            if user_points_to_check < MINIMUM_POINTS_REQUIRED:
+                print(f"User {user_id_for_log}: Insufficient points ({user_points_to_check}) ...")
+                return jsonify({
+                    'error': f'点数不足 (您有 {user_points_to_check} 点)，请充值后再使用AI服务。',
+                    'code': 'INSUFFICIENT_POINTS'
+                }), 402
+            else:
+                print(f"User {user_id_for_log}: Points check passed ({user_points_to_check} points) ...")
+
+        # --- 提示词处理 --- 
         final_prompt = None
         if template_id:
             try:
@@ -805,59 +815,120 @@ def generate_prompt_with_template():
                 template = PromptTemplate.query.get(template_id_int)
                 if not template:
                     return jsonify({'error': f'Template with id {template_id_int} not found'}), 404
-                # 权限检查 (简单示例：只有管理员或模板所有者能用？)
-                # if not current_user.is_admin and template.owner_id != current_user.id:
-                #    return jsonify({'error': 'Unauthorized to use this template'}), 403
                 final_prompt = process_prompt_template(template.template_string, input_data)
             except ValueError:
                 return jsonify({'error': 'Invalid template_id format'}), 400
             except Exception as e:
-                print(f"Error processing template {template_id}: {e}")
+                print(f"User {user_id_for_log}: Error processing template {template_id}: {e}")
                 return jsonify({'error': f'Error processing template: {e}'}), 500
         else:
-            # 如果没有模板，直接使用 input_data 中的 '提示词' (如果存在)
             final_prompt = input_data.get('提示词', '')
             if not final_prompt:
-                 return jsonify({'error': 'No template selected and no prompt provided in input_data'}), 400
-                
+                 return jsonify({'error': 'No template selected and no prompt provided in input_data using key "提示词"'}), 400
+
         # --- 调用 AI 服务 --- 
         if ai_config.enable_streaming:
-            # --- 流式传输 --- 
-            # 提前获取所需信息，避免在生成器中使用 Flask 上下文
-            config_details_for_stream = {
+            config_details_for_stream = { # ... (remains the same) ...
                  'api_key': ai_config.api_key,
                  'base_url': ai_config.base_url,
                  'model_name': ai_config.model_name,
                  'service_type': ai_config.service_type,
-                 'name': ai_config.name # 用于日志
+                 'name': ai_config.name 
             }
-            def stream_generator():
-                 try:
-                    # print(f"--- Stream Generator Started for User {user_id_for_log} ---")
-                    # 使用 config_details 调用
-                    for chunk in call_ai_service(final_prompt, config_details=config_details_for_stream, enable_streaming=True):
+            
+            # 定义 stream_generator，接收 app, user_id, username, is_admin
+            def stream_generator(flask_app, gen_user_id, gen_username, gen_is_admin):
+                try:
+                    print(f"User {gen_user_id}: Starting stream generation with AI service '{ai_config.name}'.")
+                    token_info = {'total': 0}
+                    stream_iterator = call_ai_service(final_prompt, 
+                                                      config_details=config_details_for_stream, 
+                                                      enable_streaming=True, 
+                                                      token_info=token_info)
+                    
+                    for chunk in stream_iterator:
                         yield chunk
-                    # print(f"--- Stream Generator Finished for User {user_id_for_log} ---")
-                 except Exception as e:
-                     # 在流内部记录错误，但可能无法轻易发回客户端
-                     # 这里的日志对于调试很重要
-                     print(f"!!! Error during streaming generation for user {user_id_for_log}, config '{config_details_for_stream.get('name', 'N/A')}': {e}")
-                     # 可以尝试 yield 一个错误标记，但前端需要特殊处理
-                     # yield f"STREAM_ERROR: {e}" \
-            return Response(stream_generator(), mimetype='text/plain')
+                    
+                    print(f"User {gen_user_id}: Stream generation finished for AI service '{ai_config.name}'.")
+                    total_tokens_consumed_stream = token_info.get('total', 0) 
+                    print(f"User {gen_user_id}: Tokens consumed: {total_tokens_consumed_stream}. Attempting billing and logging.")
+                    
+                    with flask_app.app_context():
+                        actual_points_deducted = 0 
+                        billing_success = False
+                        log_success = False
+                        try:
+                            if total_tokens_consumed_stream > 0:
+                                points_to_deduct_calc = total_tokens_consumed_stream // TOKENS_PER_POINT
+                                if points_to_deduct_calc > 0:
+                                    if not gen_is_admin: # 使用传入的 is_admin 标志
+                                        user_for_billing = User.query.get(gen_user_id) # 使用传入的 user_id
+                                        if user_for_billing:
+                                            if user_for_billing.points is None: user_for_billing.points = 0
+                                            old_points = user_for_billing.points
+                                            user_for_billing.points -= points_to_deduct_calc
+                                            actual_points_deducted = points_to_deduct_calc 
+                                            db.session.add(user_for_billing) 
+                                            billing_success = True 
+                                            print(f"User {gen_user_id} will be billed {points_to_deduct_calc} points. Tokens: {total_tokens_consumed_stream}. Points before: {old_points}, After: {user_for_billing.points}. AI: {ai_config.name}")
+                                        else:
+                                            print(f"CRITICAL ERROR: User {gen_user_id} not found in DB for billing.")
+                                    else:
+                                        print(f"User {gen_user_id} (admin) used {total_tokens_consumed_stream} tokens. Billing skipped.")
+                                else:
+                                    print(f"User {gen_user_id}: Points to deduct is 0 for {total_tokens_consumed_stream} tokens. No billing action.")
+                            else:
+                                print(f"User {gen_user_id}: Token usage was 0 or not found. No billing or logging.")
+
+                            if total_tokens_consumed_stream > 0:
+                                new_log_entry = ApiCallLog(
+                                    user_id=gen_user_id, # 使用传入的 user_id
+                                    username=gen_username, # 使用传入的 username
+                                    ai_service_id=ai_config.id,
+                                    ai_service_name=ai_config.name,
+                                    is_system_service=ai_config.is_system_service,
+                                    tokens_consumed=total_tokens_consumed_stream,
+                                    points_deducted=actual_points_deducted, 
+                                    prompt_length=len(final_prompt) if final_prompt else 0 
+                                )
+                                db.session.add(new_log_entry)
+                                log_success = True 
+                                print(f"User {gen_user_id}: API call log entry created. Tokens: {total_tokens_consumed_stream}, Points deducted: {actual_points_deducted}.")
+                        
+                        except Exception as db_op_ex:
+                            print(f"CRITICAL ERROR during billing/logging setup for User {gen_user_id}: {db_op_ex}")
+                            db.session.rollback()
+                        
+                        else: 
+                            if billing_success or log_success:
+                                try:
+                                    db.session.commit()
+                                    print(f"User {gen_user_id}: Database session committed for billing/logging.")
+                                except Exception as commit_ex:
+                                    db.session.rollback()
+                                    print(f"CRITICAL ERROR: Failed to commit database session for User {gen_user_id}: {commit_ex}")
+                            else:
+                                print(f"User {gen_user_id}: No database changes to commit for this request.")
+                except Exception as e:
+                     print(f"!!! User {gen_user_id}: Error during streaming generation for AI '{config_details_for_stream.get('name', 'N/A')}': {e}") # Log gen_user_id
+                     import traceback
+                     print(traceback.format_exc())
+            
+            # 返回 Response 时，调用 stream_generator 并传入 app 和用户信息
+            return Response(stream_generator(app, user_id, username, is_admin_flag), mimetype='text/plain') 
         else:
-            # --- 非流式传输 --- 
-            # 使用 config_id 调用
+             # ... (非流式逻辑保持不变) ...
+            print(f"User {user_id_for_log}: Non-streaming path taken for AI service '{ai_config.name}'. Billing logic for non-streaming is disabled.")
             result = call_ai_service(final_prompt, config_id=ai_config.id, enable_streaming=False)
-            if 'error' in result:
-                return jsonify({'error': result['error']}), 500 # Or map specific errors
+            if 'error' in result: 
+                return jsonify({'error': result['error']}), result.get('status_code', 500)
             else:
-                 # 成功时，返回包含生成文本的 JSON
-                 return jsonify({'generated_text': result.get('content', '')}) # 使用 get 以防万一
+                 return jsonify({'generated_text': result.get('content', '')}) 
                 
     except Exception as e:
+        # ... (外部错误处理保持不变) ...
         import traceback
-        print(f"Error in generate_prompt_with_template for user {user_id_for_log}: {traceback.format_exc()}")
+        print(f"User {user_id_for_log}: Unhandled error in generate_prompt_with_template: {traceback.format_exc()}")
         return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
 
 # --- 新增：将用户 AI 服务配置设为系统服务 ---
@@ -1052,3 +1123,47 @@ def get_available_ai_services():
     # sorted_configs = sorted(available_configs, key=lambda x: '我的' not in x['name']) 
 
     return jsonify(available_configs)
+
+# --- 新增：管理员获取 API 调用日志 ---
+@api_bp.route('/admin/api-call-logs', methods=['GET'])
+@login_required
+def admin_get_api_call_logs():
+    if not current_user.is_admin:
+        return jsonify({'error': '需要管理员权限'}), 403
+
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int) 
+        
+        logs_query = ApiCallLog.query.order_by(ApiCallLog.timestamp.desc())
+        
+        paginated_logs = logs_query.paginate(page=page, per_page=per_page, error_out=False)
+        logs_data = [log.to_dict() for log in paginated_logs.items]
+        
+        return jsonify({
+            'logs': logs_data,
+            'total_logs': paginated_logs.total,
+            'current_page': paginated_logs.page,
+            'per_page': paginated_logs.per_page,
+            'total_pages': paginated_logs.pages
+        })
+    except Exception as e:
+        print(f"Error fetching API call logs: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({'error': '获取 API 调用日志失败'}), 500
+
+# --- 新增：获取当前用户状态（包括点数） ---
+@api_bp.route('/user/status', methods=['GET'])
+@login_required
+def get_user_status():
+    # current_user 由 Flask-Login 提供
+    user_data = {
+        'id': current_user.id,
+        'username': current_user.username,
+        'points': current_user.points if hasattr(current_user, 'points') else 0, # 确保返回数字
+        'is_admin': current_user.is_admin,
+        'active_ai_service_id': current_user.active_ai_service_id
+        # 可以根据需要添加更多字段
+    }
+    return jsonify(user_data)

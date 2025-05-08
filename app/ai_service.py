@@ -78,8 +78,10 @@ def delete(config_id):
 
 def call_ai_service(prompt: str, config_id: int = None, enable_streaming: bool = False, 
                     # Add optional pre-fetched config details for streaming:
-                    config_details: dict = None):
-    print("--- INSIDE NEW call_ai_service FUNCTION --- ") 
+                    config_details: dict = None,
+                    # Add optional dictionary to store token info
+                    token_info: dict = None): 
+    print("--- INSIDE NEW call_ai_service FUNCTION (with token_info) --- ") 
     """
     Calls the specified AI service configuration with the given prompt.
     Supports both regular and streaming responses.
@@ -91,6 +93,8 @@ def call_ai_service(prompt: str, config_id: int = None, enable_streaming: bool =
         config_details: If streaming, a dict containing pre-fetched config 
                         (api_key, base_url, model_name, service_type).
                         Required if enable_streaming is True.
+        token_info: If streaming, an optional dictionary that will be updated 
+                    with {'total': total_tokens_consumed}.
 
     Returns/Yields:
         If streaming enabled: Generator yielding text chunks.
@@ -172,6 +176,11 @@ def call_ai_service(prompt: str, config_id: int = None, enable_streaming: bool =
                 "messages": [{"role": "user", "content": prompt}],
                 **stream_param 
             }
+            # For OpenAI compatible services, request usage statistics in the stream
+            if enable_streaming and service_type in ['openai', 'deepseek', 'custom_openai_compatible', 'groq']:
+                payload["stream_options"] = {"include_usage": True}
+                print(f"[Stream Debug] Added stream_options for {service_type}")
+
             processed_base_url = base_url.rstrip('/')
             api_path = "/v1/chat/completions"
             if service_type == 'ollama':
@@ -202,42 +211,80 @@ def call_ai_service(prompt: str, config_id: int = None, enable_streaming: bool =
         # 6. 处理响应 (区分流式和非流式)
         if enable_streaming:
             # --- 流式响应处理 --- 
-            print(f"AI 服务 ({config_name_for_error}) 开始流式传输响应...")
-            chunk_counter = 0 # 添加计数器
-            try:
-                for line in response.iter_lines():
-                    if line:
-                        decoded_line = line.decode('utf-8')
-                        print(f"[Stream Debug] Received line: {decoded_line}")
-                        if decoded_line.startswith('data: '):
-                            json_str = decoded_line[len('data: '):]
-                            if json_str.strip() == '[DONE]':
-                                print(f"[Stream Debug] Received [DONE] marker.")
-                                break
-                            try:
-                                chunk_data = json.loads(json_str)
-                                # print(f"[Stream Debug] Parsed JSON chunk: {chunk_data}")
-                                if service_type in ['openai', 'deepseek', 'custom_openai_compatible', 'groq', 'ollama']:
-                                    if chunk_data.get("choices") and len(chunk_data["choices"]) > 0:
-                                        delta = chunk_data["choices"][0].get("delta")
-                                        if delta and "content" in delta:
-                                            content_chunk = delta["content"]
-                                            if content_chunk:
-                                                print(f"[Stream Debug] Yielding chunk #{chunk_counter}: {content_chunk[:50]}...")
-                                                yield content_chunk
-                                                chunk_counter += 1
-                                    elif chunk_data.get('done', False) and service_type == 'ollama':
-                                        print(f"[Stream Debug] Ollama stream finished (done=True)")
-                                        break
-                                    else:
-                                        print(f"[Stream Debug] Unknown chunk structure (not choices/delta): {chunk_data}")
-                                else:
-                                    print(f"[Stream Debug] Service type '{service_type}' stream parsing not implemented.")
-                            except json.JSONDecodeError:
-                                print(f"[Stream Debug] JSONDecodeError for line: {json_str}")
-                print(f"AI 服务 ({config_name_for_error}) 流处理完成. Yielded {chunk_counter} chunks.")
-            except Exception as e:
-                print(f"!!! Error during response iteration for AI service {config_name_for_error}: {e}")
+            
+            # Define an inner generator that will also store token counts
+            def _stream_generator_with_tokens():
+                # Initialize local counters, we'll update the passed dict at the end
+                _local_total_tokens = 0
+                _local_prompt_tokens = 0
+                _local_completion_tokens = 0
+                
+                print(f"AI 服务 ({config_name_for_error}) 开始流式传输响应...")
+                chunk_counter = 0 
+                try:
+                    for line in response.iter_lines():
+                        if line:
+                            decoded_line = line.decode('utf-8')
+                            # print(f"[Stream Debug] Received line: {decoded_line}") # Can be very verbose
+                            if decoded_line.startswith('data: '):
+                                json_str = decoded_line[len('data: '):]
+                                if json_str.strip() == '[DONE]':
+                                    print(f"[Stream Debug] Received [DONE] marker for {config_name_for_error}.")
+                                    break
+                                try:
+                                    chunk_data = json.loads(json_str)
+                                    # print(f"[Stream Debug] Parsed JSON chunk: {chunk_data}")
+
+                                    # Check for usage information (OpenAI compatible with stream_options)
+                                    if "usage" in chunk_data and isinstance(chunk_data["usage"], dict):
+                                        usage = chunk_data["usage"]
+                                        # Update local counters from usage chunk
+                                        _local_prompt_tokens = usage.get("prompt_tokens", _local_prompt_tokens)
+                                        _local_completion_tokens = usage.get("completion_tokens", _local_completion_tokens)
+                                        _local_total_tokens = usage.get("total_tokens", 
+                                            _local_prompt_tokens + _local_completion_tokens)
+                                        print(f"[Stream Debug] Usage found in chunk for {config_name_for_error}: Prompt={_local_prompt_tokens}, Completion={_local_completion_tokens}, Total={_local_total_tokens}")
+                                    
+                                    # Extract content
+                                    if service_type in ['openai', 'deepseek', 'custom_openai_compatible', 'groq', 'ollama']:
+                                        if chunk_data.get("choices") and len(chunk_data["choices"]) > 0:
+                                            delta = chunk_data["choices"][0].get("delta")
+                                            if delta and "content" in delta:
+                                                content_chunk = delta["content"]
+                                                if content_chunk:
+                                                    # print(f"[Stream Debug] Yielding chunk #{chunk_counter}: {content_chunk[:50]}...")
+                                                    yield content_chunk
+                                                    chunk_counter += 1
+                                        elif chunk_data.get('done', False) and service_type == 'ollama':
+                                            # For Ollama, 'done' message often contains final token counts
+                                            # Update local counters from Ollama's done message
+                                            _local_prompt_tokens = chunk_data.get('prompt_eval_count', _local_prompt_tokens)
+                                            _local_completion_tokens = chunk_data.get('eval_count', _local_completion_tokens)
+                                            _local_total_tokens = _local_prompt_tokens + _local_completion_tokens
+                                            print(f"[Stream Debug] Ollama stream finished (done=True) for {config_name_for_error}. Tokens: P={_local_prompt_tokens}, C={_local_completion_tokens}, Total={_local_total_tokens}")
+                                            break # Stop iteration on Ollama's done message
+                                        # else:
+                                            # print(f"[Stream Debug] Unknown chunk structure (not choices/delta): {chunk_data}")
+                                    # else:
+                                        # print(f"[Stream Debug] Service type '{service_type}' stream parsing not implemented for content.")
+                                except json.JSONDecodeError:
+                                    print(f"[Stream Debug] JSONDecodeError for line: {json_str} in {config_name_for_error}")
+                    # --- After the loop, update the passed token_info dictionary --- 
+                    if token_info is not None:
+                        token_info['total'] = _local_total_tokens
+                        # Optionally add prompt/completion tokens too if needed later
+                        # token_info['prompt'] = _local_prompt_tokens
+                        # token_info['completion'] = _local_completion_tokens
+                        print(f"[Stream Info] Updated token_info dict: {token_info}")
+                    else:
+                        print(f"[Stream Warning] token_info dictionary was not provided.")
+
+                    print(f"AI 服务 ({config_name_for_error}) 流处理完成. Yielded {chunk_counter} content chunks. Final recorded tokens: Total={_local_total_tokens}")
+                except Exception as e:
+                    print(f"!!! Error during response iteration for AI service {config_name_for_error}: {e}")
+                    # Optionally re-raise or yield an error marker
+            
+            return _stream_generator_with_tokens() # Return the generator instance
         else:
             # --- 非流式响应处理 --- 
             response_data = response.json()

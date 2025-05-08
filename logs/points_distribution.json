@@ -94,5 +94,29 @@
         "points_distributed": 10,
         "balance_before": 30,
         "balance_after": 40
+    },
+    {
+        "timestamp": "2025-05-08T04:00:08.121671Z",
+        "subscription_config_id": 1,
+        "subscription_config_name": "默认订阅组 1",
+        "target_group_id": 1,
+        "target_group_name": "每月100点",
+        "user_id": 2,
+        "username": "user",
+        "points_distributed": 10,
+        "balance_before": 210,
+        "balance_after": 220
+    },
+    {
+        "timestamp": "2025-05-08T04:00:08.121671Z",
+        "subscription_config_id": 1,
+        "subscription_config_name": "默认订阅组 1",
+        "target_group_id": 1,
+        "target_group_name": "每月100点",
+        "user_id": 3,
+        "username": "user1",
+        "points_distributed": 10,
+        "balance_before": 40,
+        "balance_after": 50
     }
 ]

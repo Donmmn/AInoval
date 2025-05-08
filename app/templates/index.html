@@ -922,6 +922,16 @@
         // Variable to store the range of the last AI generated text - 移除
         // let lastGeneratedRange = null; 
         let isGenerating = false; // Flag to prevent concurrent generation requests
+        const userPointsDisplayElement = document.getElementById('user-points-display'); // Get points display element
+
+        // --- NEW: State persistence variables ---
+        const EDITOR_STATE_KEY = 'novelEditorState';
+        let isRestoringState = false; // Flag to prevent saving during state restoration
+        // --- END NEW ---
+
+        // --- NEW: Unsaved changes tracking ---
+        let hasUnsavedChanges = false;
+        // --- END NEW ---
 
         // --- Cleanup Function for AI Markup --- 
         function cleanupAiMarkup(container = novelContent) {
@@ -1095,6 +1105,37 @@
                  isGenerating = false; // 释放锁
             }
         }
+
+        // --- NEW Function to Fetch and Update User Points --- 
+        async function updateUserPointsDisplay() {
+            if (!userPointsDisplayElement) { // Check if the element exists
+                console.log("User points display element not found, skipping update.");
+                return;
+            }
+            console.log("Attempting to update user points display...");
+            try {
+                const response = await fetch('/api/user/status');
+                if (!response.ok) {
+                    console.error(`Failed to fetch user status: ${response.status}`);
+                    // Optionally display a temporary error in the points area
+                    // userPointsDisplayElement.textContent = '?'; 
+                    return;
+                }
+                const userData = await response.json();
+                if (userData && userData.points !== undefined) {
+                    // Update the text content, keeping the icon
+                    userPointsDisplayElement.innerHTML = `<i class="fas fa-coins"></i> ${userData.points}`;
+                    console.log(`User points display updated to: ${userData.points}`);
+                } else {
+                    console.warn("Received user data but points field is missing or undefined.", userData);
+                }
+            } catch (error) {
+                console.error('Error fetching or updating user points:', error);
+                // Optionally display a temporary error in the points area
+                // userPointsDisplayElement.innerHTML = '<i class="fas fa-coins"></i> ?';
+            }
+        }
+        // --- End NEW Function ---
 
         // --- Add Listener for Prompt Input Enter Key ---
         if (promptInput && generateBtn) {
@@ -2139,15 +2180,30 @@
             const rootItems = await fetchItems('root');
             if (rootItems) {
                 renderFileList(rootItems, fileList);
+                await loadEditorState(); // <-- 修改：调用并等待状态恢复
             } else {
                  fileList.innerHTML = '<li>加载根目录失败</li>';
             }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            loadInitialItems();
-            populateTemplateSelector(); // <-- 添加调用
-            populateAiServiceSelector(); // <-- 添加调用
+            // loadInitialItems(); //  <-- 修改：移动到 populateSelectors 之后
+            // populateTemplateSelector(); // <-- 添加调用 //  <-- 修改：移动到 populateSelectors 之后
+            // populateAiServiceSelector(); // <-- 添加调用 //  <-- 修改：移动到 populateSelectors 之后
+
+            // --- NEW: Call populators then load items and state ---
+            Promise.all([
+                populateTemplateSelector(),
+                populateAiServiceSelector()
+            ]).then(() => {
+                loadInitialItems(); // This will now call loadEditorState after items are rendered
+            }).catch(error => {
+                console.error("Error during initial population of selectors:", error);
+                // Fallback if selectors fail to load, still try to load items/state
+                loadInitialItems();
+            });
+            // --- END NEW ---
+
 
             // --- Auto-Save Toggle Listener ---
             if (autoSaveToggle) {
@@ -2262,6 +2318,13 @@
                     // 调用更新函数，它内部会使用新的字符计数
                     updateRightSidebarTitle(currentEditingBookTitle, currentContent);
 
+                    // --- NEW: Set unsaved changes flag ---
+                    if (!isRestoringState) { // Don't set if content is changing due to state restoration
+                        hasUnsavedChanges = true;
+                        console.log('Unsaved changes detected.');
+                    }
+                    // --- END NEW ---
+
                     // --- 移除输入时的自动保存逻辑 ---
                     /*
                     // 清除之前的计时器
@@ -2276,6 +2339,11 @@
                     */
                     // --- 结束移除自动保存逻辑 ---
                 }
+                 // --- NEW: Save state on input (debounced) ---
+                 // For prompt bar, changes are handled by specific listeners on those inputs.
+                 // This is more for the main editor content changes if we decide to save that.
+                 // For now, file switching handles saving the 'current open file'.
+                 // --- END NEW ---
             });
 
             // --- 生成按钮事件监听 --- 
@@ -2354,6 +2422,10 @@
                     }
                     if (result) {
                         console.log('[Save Success] Content saved successfully.');
+                        // --- NEW: Reset unsaved changes flag ---
+                        hasUnsavedChanges = false;
+                        console.log('Content saved, unsaved changes flag reset.');
+                        // --- END NEW ---
                         if (saveBtn) {
                             saveBtn.classList.add('save-success');
                             setTimeout(() => { saveBtn.classList.remove('save-success'); }, 1500); 
@@ -2397,6 +2469,10 @@
                      // Use value for textarea
                      // novelContent.innerHTML = contentData.content || '';
                      novelContent.value = contentData.content || '';
+                     // --- NEW: Reset unsaved changes flag as content is freshly loaded/updated ---
+                     hasUnsavedChanges = false;
+                     console.log('Book content loaded/updated, unsaved changes flag reset.');
+                     // --- END NEW ---
                      // Update title with value after loading
                      // updateRightSidebarTitle(currentEditingBookTitle, novelContent.textContent); 
                      updateRightSidebarTitle(currentEditingBookTitle, novelContent.value); 
@@ -2759,6 +2835,12 @@
             event.stopPropagation();
             console.log('Clicked:', itemData.name, 'Type:', itemData.type);
 
+            // --- NEW: Save state before switching (unless restoring) ---
+            if (!isRestoringState) {
+                saveEditorState();
+            }
+            // --- END NEW ---
+
             // --- 离开时自动保存逻辑 (保持不变) ---
             const previouslyEditingItemId = novelContent.dataset.currentItemId;
             const previouslyEditingItemType = novelContent.dataset.currentItemType;
@@ -3010,6 +3092,8 @@
                          
                          // 1. Trigger immediate save
                          autoSaveSettings(); // Call the existing save function directly
+                         if (!isRestoringState) saveEditorState(); // Also save general editor state
+
 
                          // 2. Find next setting item and focus its textarea
                          const currentLi = event.target.closest('.setting-item');
@@ -3040,6 +3124,10 @@
         settingContent.addEventListener('click', async (event) => {
             const target = event.target;
             // ... (existing add/delete button logic) ...
+            if (target.id === 'add-setting-btn' || target.classList.contains('delete-setting-btn')) {
+                if (!isRestoringState) saveEditorState(); // Save state after add/delete
+            }
+
 
             // Handle Save Settings Button
             if (target.id === 'save-settings-btn') {
@@ -3106,6 +3194,173 @@
                 }
             }
         });
+
+        // --- NEW: Add listeners for prompt options change ---
+        [templateSelect, aiServiceSelect, wordCountInput, styleInput].forEach(element => {
+            if (element) {
+                element.addEventListener('change', () => {
+                    if (!isRestoringState) {
+                        saveEditorState();
+                    }
+                });
+            }
+        });
+
+        // --- NEW: Save state before unload ---
+        window.addEventListener('beforeunload', (event) => {
+            // First, always attempt to save the general UI state (last open file, prompt settings)
+            isRestoringState = false; // Ensure saveEditorState runs
+            saveEditorState();
+
+            const isEditingBook = novelContent.dataset.currentItemType === 'book';
+
+            if (isEditingBook && hasUnsavedChanges) {
+                // If there are unsaved changes in a book, prompt the user.
+                const confirmationMessage = '您有未保存的更改，是否立即保存？\n\n点击"确定"尝试保存。\n点击"取消"不保存，您的更改可能会丢失。';
+                
+                if (confirm(confirmationMessage)) {
+                    // User clicked "OK" on our custom dialog.
+                    // Attempt to save the content. This is an async operation.
+                    // We call it but don't await it, as beforeunload must be sync.
+                    saveCurrentBookContent(); 
+                    // By not returning a string or calling event.preventDefault() here,
+                    // we are signaling to the browser that we've handled the situation
+                    // (or at least attempted to), so it should not show its default prompt.
+                } else {
+                    // User clicked "Cancel" on our custom dialog.
+                    // This means they explicitly chose NOT to save the changes through our prompt.
+                    // In this case, we should trigger the browser's built-in warning.
+                    event.preventDefault(); // Required for modern browsers.
+                    event.returnValue = ''; // Required for some older browsers.
+                    return ''; // Returning a non-empty string also triggers it.
+                }
+            }
+            // If not editing a book, or no unsaved changes, or user clicked "OK" on our dialog,
+            // the event proceeds without a browser-default prompt (unless the async save above takes too long and fails silently).
+        });
+        // --- END NEW ---
+
+        // --- NEW State Persistence Functions ---
+        function saveEditorState() {
+            if (isRestoringState) {
+                console.log('State restoration in progress, skipping save.');
+                return;
+            }
+
+            let currentFile = null;
+            const novelItemId = novelContent.dataset.currentItemId;
+            const novelItemType = novelContent.dataset.currentItemType;
+
+            // Scenario 1: A book is open in the main editor
+            if (novelItemId && novelItemType === 'book') {
+                const bookElement = fileList.querySelector(`.file-item[data-id="${novelItemId}"]`);
+                const name = bookElement ? bookElement.querySelector('.item-name').textContent : (currentEditingBookTitle || 'Unknown Book');
+                currentFile = { id: novelItemId, type: 'book', name: name };
+            } 
+            // Scenario 2: 'Associate setting' list is shown in central display
+            else if (centralDisplayArea.style.display !== 'none' && centralDisplayArea.querySelector('.unassociated-book-list')) {
+                const unassociatedList = centralDisplayArea.querySelector('.unassociated-book-list');
+                const settingBookIdForAssociation = unassociatedList.dataset.settingBookId;
+                if (settingBookIdForAssociation) {
+                    const settingElement = fileList.querySelector(`.file-item[data-id="${settingBookIdForAssociation}"]`);
+                    const name = settingElement ? settingElement.querySelector('.item-name').textContent : 'Unknown Setting';
+                    currentFile = { id: settingBookIdForAssociation, type: 'setting', name: name, mode: 'associating' };
+                }
+            }
+            // Scenario 3: A folder might be "active" if its children are shown, but no specific file is open.
+            // Or, a setting item was clicked and it's now associated, leading to a book view.
+            // If no specific book or 'associating' mode setting is active, we can try to find the last clicked item.
+            // For simplicity, if not a book or associating setting, we consider no specific file "open" for state saving.
+            // The active folder's expanded state is saved by toggleFolderAPI.
+
+            const promptSettings = {
+                templateId: templateSelect.value,
+                aiServiceId: aiServiceSelect.value,
+                wordCount: wordCountInput.value,
+                style: styleInput.value
+            };
+
+            const editorState = {
+                lastOpenFile: currentFile,
+                promptSettings: promptSettings
+            };
+
+            try {
+                localStorage.setItem(EDITOR_STATE_KEY, JSON.stringify(editorState));
+                console.log('Editor state saved:', editorState);
+            } catch (e) {
+                console.error('Failed to save editor state to localStorage:', e);
+            }
+        }
+
+        async function loadEditorState() {
+            const savedStateString = localStorage.getItem(EDITOR_STATE_KEY);
+            if (!savedStateString) {
+                console.log('No saved editor state found.');
+                return;
+            }
+
+            isRestoringState = true; // Set flag
+
+            try {
+                const state = JSON.parse(savedStateString);
+                console.log('Loaded editor state:', state);
+
+                // Restore prompt settings
+                if (state.promptSettings) {
+                    if (state.promptSettings.templateId) templateSelect.value = state.promptSettings.templateId;
+                    if (state.promptSettings.aiServiceId) aiServiceSelect.value = state.promptSettings.aiServiceId;
+                    if (state.promptSettings.wordCount) wordCountInput.value = state.promptSettings.wordCount;
+                    if (state.promptSettings.style) styleInput.value = state.promptSettings.style;
+                }
+
+                // Restore last open file
+                if (state.lastOpenFile && state.lastOpenFile.id) {
+                    const { id, type, name, mode } = state.lastOpenFile;
+                    const itemElement = document.querySelector(`.file-item[data-id="${id}"]`);
+
+                    if (itemElement) {
+                        console.log(`Attempting to restore open file: ${name} (ID: ${id}, Type: ${type}, Mode: ${mode})`);
+                        
+                        const itemData = {
+                            id: id,
+                            type: type,
+                            name: itemElement.querySelector('.item-name').textContent,
+                            // Add other properties if they are on dataset and needed by handleItemClick
+                        };
+                        
+                        // Directly call handleItemClick, it will manage view based on type/mode
+                        // Pass a mock event object
+                        await handleItemClick({ stopPropagation: () => {}, preventDefault: () => {} }, itemData, itemElement);
+                        
+                        // If it was a folder, ensure it's expanded if children were loaded by handleItemClick
+                        if (type === 'folder' && itemElement.classList.contains('collapsed')) {
+                            // handleItemClick would toggle 'collapsed'. If it's still collapsed, it means it was
+                            // collapsed before and toggled to expanded, then if children were empty it might not show.
+                            // The API call toggleFolderAPI in handleItemClick should manage persistence of collapsed state.
+                            // Here we just ensure the visual state from handleItemClick is what we want.
+                        }
+
+                    } else {
+                        console.warn(`Saved file element (ID: ${id}) not found in current DOM. Cannot restore.`);
+                    }
+                } else {
+                    console.log("No specific file was saved as last open, or root was active.");
+                    // Ensure editor is clear if no file is to be restored
+                    showEditorArea();
+                    novelContent.value = '';
+                    delete novelContent.dataset.currentItemId;
+                    delete novelContent.dataset.currentItemType;
+                    clearSettingDisplay();
+                    updateRightSidebarTitle('设定详情');
+                }
+            } catch (e) {
+                console.error('Failed to load or parse editor state from localStorage:', e);
+            } finally {
+                isRestoringState = false; // Reset flag
+            }
+        }
+        // --- END NEW State Persistence Functions ---
 
     </script>
 </body>
