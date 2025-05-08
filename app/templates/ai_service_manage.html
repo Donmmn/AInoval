@@ -164,7 +164,206 @@
              background-color: #f8d7da;
              border: 1px solid #f5c6cb;
          }
+
+        /* Right Collapsible Panel Styles - Copied from user_manage.html */
+        #ai-service-right-panel {
+            height: calc(100vh - 60px); /* Full height below top-bar */
+            position: fixed; 
+            right: 0;
+            top: 60px; 
+            background-color: #f8f9fa; 
+            border-left: 1px solid #e0e0e0;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.1); /* Shadow on the left side */
+            transition: transform 0.3s ease-in-out, width 0.3s ease-in-out; 
+            overflow: hidden; 
+            z-index: 999; 
+            transform: translateX(calc(100% - 45px)); /* Initially collapsed, showing only handle width */
+            width: 320px; /* Default fixed width when collapsed or partially shown */
+        }
+
+        #ai-service-right-panel.expanded {
+            transform: translateX(0); /* Slides in to be fully visible */
+            width: 30%; /* Expanded width, adjust as needed */
+        }
+
+        .ai-panel-toggle-handle {
+            width: 45px; 
+            height: 100%;
+            position: absolute;
+            left: 0; 
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background-color: #e9eef2;
+            border-right: 1px solid #d0d7de; 
+            box-sizing: border-box;
+        }
+        
+        #ai-service-right-panel.expanded .ai-panel-toggle-handle {
+             background-color: #dde3e8;
+        }
+
+        .ai-panel-toggle-handle .ai-panel-handle-text {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            margin-top: 15px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #444;
+            white-space: nowrap;
+        }
+
+        .ai-panel-toggle-handle #ai-panel-toggle-icon {
+            font-size: 16px;
+            color: #333;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        #ai-service-right-panel.expanded #ai-panel-toggle-icon {
+            transform: rotate(180deg); 
+        }
+
+        .ai-panel-actual-content {
+            padding: 20px;
+            margin-left: 45px; /* Offset by handle width */
+            width: calc(100% - 45px); 
+            box-sizing: border-box;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .ai-panel-actual-content h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+
+        /* Custom styles for the new AI preferences UI */
+        .preference-group {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .preference-group:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        .preference-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #555;
+        }
+        .preference-group input[type="number"],
+        .preference-group textarea {
+            width: calc(100% - 16px); /* Full width minus padding */
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.95em;
+            margin-bottom: 5px;
+            box-sizing: border-box;
+        }
+        .preference-group .color-inputs {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .preference-group .color-inputs input[type="number"] {
+            width: 60px; /* Smaller width for RGB inputs */
+            text-align: center;
+        }
+        .preference-group .color-inputs span {
+            font-weight: bold;
+        }
+        #ai-style-preview {
+            width: 100%;
+            min-height: 50px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background-color: #f0f0f0; /* Default background */
+            color: #333; /* Default text color */
+            transition: background-color 0.3s, color 0.3s;
+            font-size: 1.1em;
+        }
+        .preference-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        .preference-group input[type="checkbox"] {
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .preference-group .checkbox-label {
+            font-weight: normal;
+            display: inline;
+            vertical-align: middle;
+        }
+        .preference-actions {
+            display: flex;
+            gap: 10px; /* Space between buttons */
+            margin-top: 20px;
+        }
+        .save-preferences-btn {
+            background-color: #007bff; /* 深蓝色 */
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            flex-grow: 1; /* Allow buttons to share space */
+            text-align: center;
+        }
+        .save-preferences-btn:hover {
+            background-color: #0056b3; /* 深蓝色悬停 */
+        }
+        .default-settings-btn {
+            background-color: #cfe2ff; /* 浅蓝色 */
+            color: #084298; /* 深色文字以保证对比度 */
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            flex-grow: 1; /* Allow buttons to share space */
+        }
+        .default-settings-btn:hover {
+            background-color: #e0a800;
+        }
+        #ai-prefs-status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-align: center;
+            display: none; /* Hidden by default */
+        }
+        #ai-prefs-status-message.success {
+            color: #155724;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+        #ai-prefs-status-message.error {
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+
     </style>
+    <!-- 引入 Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <div class="top-bar">
@@ -355,10 +554,71 @@
 
     </div>
 
+    {# New Right Collapsible Panel for AI Service Management #}
+    <div id="ai-service-right-panel" class="collapsed"> 
+        <div class="ai-panel-toggle-handle" title="扩展功能面板">
+            <i id="ai-panel-toggle-icon" class="fas fa-chevron-left"></i>
+            <span class="ai-panel-handle-text">功能区</span>
+        </div>
+        <div class="ai-panel-actual-content">
+            <h3>AI 用户偏好设置</h3>
+            <hr>
+
+            <div id="user-ai-preferences-form">
+                <!-- 1. AI 生成内容样式设置 -->
+                <div class="preference-group">
+                    <label>AI 生成内容样式预览:</label>
+                    <div id="ai-style-preview">这是 AI 生成内容的预览文本。</div>
+                    
+                    <label for="ai-bg-color-r">背景颜色 (RGB):</label>
+                    <div class="color-inputs">
+                        <span>R:</span> <input type="number" id="ai-bg-color-r" min="0" max="255" value="255">
+                        <span>G:</span> <input type="number" id="ai-bg-color-g" min="0" max="255" value="240">
+                        <span>B:</span> <input type="number" id="ai-bg-color-b" min="0" max="255" value="240">
+                    </div>
+
+                    <label for="ai-font-color-r">字体颜色 (RGB):</label>
+                    <div class="color-inputs">
+                        <span>R:</span> <input type="number" id="ai-font-color-r" min="0" max="255" value="51">
+                        <span>G:</span> <input type="number" id="ai-font-color-g" min="0" max="255" value="51">
+                        <span>B:</span> <input type="number" id="ai-font-color-b" min="0" max="255" value="51">
+                    </div>
+                </div>
+
+                <!-- 2. 重试提示词模板 -->
+                <div class="preference-group">
+                    <label for="retry-prompt-template">重试提示词追加模板:</label>
+                    <textarea id="retry-prompt-template" placeholder="例如：请根据以上反馈，调整你的回答。"></textarea>
+                    <small>此模板内容将在点击"重试"时，追加到原始提示词的末尾。使用 `@[原回复]` 来引用 AI 上一次生成的内容。</small>
+                </div>
+
+                <!-- 3. Markdown 提示词模板 -->
+                <div class="preference-group">
+                    <div>
+                        <input type="checkbox" id="enable-markdown-prompt">
+                        <label for="enable-markdown-prompt" class="checkbox-label">启用 Markdown 输出模式</label>
+                    </div>
+                    <label for="markdown-prompt-template" style="margin-top:10px;">Markdown 模式提示词追加模板:</label>
+                    <textarea id="markdown-prompt-template" placeholder="例如：请使用 Markdown 格式化你的回答，包括标题、列表、粗体等。"></textarea>
+                    <small>若启用，此模板内容将追加到提示词末尾，以引导 AI 返回 Markdown 格式内容。</small>
+                </div>
+
+                <div class="preference-actions">
+                    <button id="save-user-ai-prefs-btn" class="save-preferences-btn">保存用户偏好设置</button>
+                    <button id="use-default-ai-prefs-btn" class="default-settings-btn">使用默认设置</button>
+                </div>
+                <div id="admin-only-actions" style="margin-top: 15px; display: none;">
+                    <button id="export-system-defaults-btn" class="default-settings-btn" style="background-color: #6c757d; color: white;">将当前配置导出为系统默认</button>
+                </div>
+                <div id="ai-prefs-status-message"></div>
+            </div>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const mainContentDiv = document.querySelector('.main-content');
-            const isAdmin = mainContentDiv.dataset.isAdmin === 'true'; // Get admin status
+            const isAdmin = mainContentDiv.dataset.isAdmin === 'true'; // Get admin status ONCE here
 
             // --- AI Service Configuration Form Handling ---
             const aiConfigForm = document.getElementById('ai-config-form');
@@ -835,6 +1095,252 @@
 
             // Initial load
             fetchAndDisplayTemplates();
+
+            // --- AI Service Right Collapsible Panel Logic ---
+            const aiServicePanel = document.getElementById('ai-service-right-panel');
+            const aiPanelToggleHandle = aiServicePanel ? aiServicePanel.querySelector('.ai-panel-toggle-handle') : null;
+            // const aiPanelActualContent = aiServicePanel ? aiServicePanel.querySelector('.ai-panel-actual-content') : null; // Not directly used for toggle
+            let aiPanelContentLoaded = false; // Example flag if content loading is needed
+
+            if (aiServicePanel && aiPanelToggleHandle) {
+                aiPanelToggleHandle.addEventListener('click', function() {
+                    const willBeExpanded = !aiServicePanel.classList.contains('expanded');
+                    aiServicePanel.classList.toggle('expanded');
+                    // Example: Load content if expanding for the first time
+                    if (willBeExpanded && !aiPanelContentLoaded) {
+                        // console.log('AI Service panel expanded for the first time. Load content here if needed.');
+                        // loadAiPanelContent(); // Hypothetical function
+                        aiPanelContentLoaded = true;
+                    }
+                });
+
+                // Optional: Check if panel should be expanded by default (e.g., via saved state or a class)
+                // if (aiServicePanel.classList.contains('expanded') && !aiPanelContentLoaded) {
+                //    loadAiPanelContent();
+                //    aiPanelContentLoaded = true;
+                // }
+            }
+
+            // --- User AI Preferences UI Logic ---
+            const bgColorR = document.getElementById('ai-bg-color-r');
+            const bgColorG = document.getElementById('ai-bg-color-g');
+            const bgColorB = document.getElementById('ai-bg-color-b');
+            const fontColorR = document.getElementById('ai-font-color-r');
+            const fontColorG = document.getElementById('ai-font-color-g');
+            const fontColorB = document.getElementById('ai-font-color-b');
+            const stylePreview = document.getElementById('ai-style-preview');
+            const retryPromptTextarea = document.getElementById('retry-prompt-template');
+            const enableMarkdownCheckbox = document.getElementById('enable-markdown-prompt');
+            const markdownPromptTextarea = document.getElementById('markdown-prompt-template');
+            const statusMessageDiv = document.getElementById('ai-prefs-status-message');
+
+            function updatePreviewStyle() {
+                if (!bgColorR || !bgColorG || !bgColorB || !fontColorR || !fontColorG || !fontColorB || !stylePreview) {
+                    console.warn("One or more style preference elements are missing.");
+                    return;
+                }
+                const bgR = bgColorR.value || 0;
+                const bgG = bgColorG.value || 0;
+                const bgB = bgColorB.value || 0;
+                const fontR = fontColorR.value || 0;
+                const fontG = fontColorG.value || 0;
+                const fontB = fontColorB.value || 0;
+
+                stylePreview.style.backgroundColor = `rgb(${bgR}, ${bgG}, ${bgB})`;
+                stylePreview.style.color = `rgb(${fontR}, ${fontG}, ${fontB})`;
+            }
+
+            function showStatusMessage(message, type = 'info') {
+                if (!statusMessageDiv) return;
+                statusMessageDiv.textContent = message;
+                statusMessageDiv.className = `form-message form-message-${type}`; // Use general form-message for base styling
+                statusMessageDiv.classList.add(type); // Add specific type for color
+                statusMessageDiv.style.display = 'block';
+                setTimeout(() => {
+                    statusMessageDiv.style.display = 'none';
+                    statusMessageDiv.textContent = '';
+                    statusMessageDiv.className = 'form-message';
+                }, 4000);
+            }
+
+            async function loadUserAiPreferences() {
+                console.log("Attempting to load user AI preferences...");
+                try {
+                    const response = await fetch('/api/user/ai-preferences');
+                    if (!response.ok) {
+                        if (response.status === 404) { // Preferences not yet set for user
+                            console.log("User AI preferences not found (404), using current form/default values.");
+                            showStatusMessage('未找到用户偏好设置，将使用默认值。您可随时保存您的设置。', 'info');
+                            updatePreviewStyle(); // Ensure preview is updated with form defaults
+                            return; // Keep existing form values as defaults
+                        }
+                        throw new Error(`获取偏好设置失败: ${response.status}`);
+                    }
+                    const prefs = await response.json();
+                    console.log("Preferences loaded:", prefs);
+
+                    if (prefs) {
+                        bgColorR.value = prefs.ai_bg_color_r !== null ? prefs.ai_bg_color_r : 255;
+                        bgColorG.value = prefs.ai_bg_color_g !== null ? prefs.ai_bg_color_g : 240;
+                        bgColorB.value = prefs.ai_bg_color_b !== null ? prefs.ai_bg_color_b : 240;
+                        
+                        // --- Fix: Add loading for font color values --- 
+                        fontColorR.value = prefs.ai_font_color_r !== null ? prefs.ai_font_color_r : 51;
+                        fontColorG.value = prefs.ai_font_color_g !== null ? prefs.ai_font_color_g : 51;
+                        fontColorB.value = prefs.ai_font_color_b !== null ? prefs.ai_font_color_b : 51;
+                        // --- End Fix ---
+
+                        retryPromptTextarea.value = prefs.retry_prompt_template || '';
+                        enableMarkdownCheckbox.checked = prefs.enable_markdown_prompt || false;
+                        markdownPromptTextarea.value = prefs.markdown_prompt_template || '';
+                        
+                        updatePreviewStyle();
+                        showStatusMessage('用户偏好设置已加载。', 'success');
+                    } else {
+                         // This case might not be hit if 404 is handled above, but good as a fallback
+                        console.log("No preferences data returned, using current form/default values.");
+                        updatePreviewStyle();
+                    }
+                } catch (error) {
+                    console.error('加载用户偏好设置时出错:', error);
+                    showStatusMessage(`加载偏好设置错误: ${error.message}`, 'error');
+                    updatePreviewStyle(); // Still update preview with form defaults on error
+                }
+            }
+
+            if (bgColorR && bgColorG && bgColorB && fontColorR && fontColorG && fontColorB) {
+                [bgColorR, bgColorG, bgColorB, fontColorR, fontColorG, fontColorB].forEach(input => {
+                    input.addEventListener('input', updatePreviewStyle);
+                    input.addEventListener('change', updatePreviewStyle); // For up/down arrows
+                });
+                 // Initial preview update
+                updatePreviewStyle();
+            }
+
+            // Placeholder for save button functionality
+            const savePrefsBtn = document.getElementById('save-user-ai-prefs-btn');
+            if (savePrefsBtn) {
+                savePrefsBtn.addEventListener('click', async () => {
+                    const payload = {
+                        ai_bg_color_r: parseInt(bgColorR.value) || 0,
+                        ai_bg_color_g: parseInt(bgColorG.value) || 0,
+                        ai_bg_color_b: parseInt(bgColorB.value) || 0,
+                        ai_font_color_r: parseInt(fontColorR.value) || 0,
+                        ai_font_color_g: parseInt(fontColorG.value) || 0,
+                        ai_font_color_b: parseInt(fontColorB.value) || 0,
+                        retry_prompt_template: retryPromptTextarea.value,
+                        enable_markdown_prompt: enableMarkdownCheckbox.checked,
+                        markdown_prompt_template: markdownPromptTextarea.value
+                    };
+
+                    console.log("Saving preferences:", payload);
+                    showStatusMessage('正在保存设置...', 'info');
+
+                    try {
+                        const response = await fetch('/api/user/ai-preferences', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ error: `HTTP error ${response.status}` }));
+                            throw new Error(errorData.error || `保存失败: ${response.status}`);
+                        }
+                        const result = await response.json();
+                        showStatusMessage(result.message || '用户偏好设置已保存。', 'success');
+                        console.log("Save successful:", result);
+                    } catch (error) {
+                        console.error('保存偏好设置时出错:', error);
+                        showStatusMessage(`保存错误: ${error.message}`, 'error');
+                    }
+                });
+            }
+
+            const defaultPrefsBtn = document.getElementById('use-default-ai-prefs-btn');
+            if (defaultPrefsBtn) {
+                defaultPrefsBtn.addEventListener('click', async () => {
+                    // alert('使用默认设置的功能将在后续实现。');
+                    showStatusMessage('正在加载系统默认配置...', 'info');
+                    try {
+                        const response = await fetch('/api/user/ai-preferences/system-default');
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ error: `获取默认配置失败: ${response.status}`}));
+                            throw new Error(errorData.error);
+                        }
+                        const defaults = await response.json();
+                        
+                        // Populate form with defaults
+                        bgColorR.value = defaults.ai_bg_color_r !== null ? defaults.ai_bg_color_r : 255;
+                        bgColorG.value = defaults.ai_bg_color_g !== null ? defaults.ai_bg_color_g : 240;
+                        bgColorB.value = defaults.ai_bg_color_b !== null ? defaults.ai_bg_color_b : 240;
+                        fontColorR.value = defaults.ai_font_color_r !== null ? defaults.ai_font_color_r : 51;
+                        fontColorG.value = defaults.ai_font_color_g !== null ? defaults.ai_font_color_g : 51;
+                        fontColorB.value = defaults.ai_font_color_b !== null ? defaults.ai_font_color_b : 51;
+                        
+                        retryPromptTextarea.value = defaults.retry_prompt_template || '';
+                        enableMarkdownCheckbox.checked = defaults.enable_markdown_prompt || false;
+                        markdownPromptTextarea.value = defaults.markdown_prompt_template || '';
+                        
+                        updatePreviewStyle(); // Update color preview
+                        showStatusMessage('系统默认配置已加载到表单。请按需保存为您的个人设置。', 'success');
+
+                    } catch (error) {
+                        console.error('加载系统默认配置时出错:', error);
+                        showStatusMessage(`加载默认配置错误: ${error.message}`, 'error');
+                    }
+                });
+            }
+
+            // Initial load of preferences when the panel content is ready
+            if (aiServicePanel && aiPanelToggleHandle) { // Check if panel elements exist
+                loadUserAiPreferences(); 
+            }
+
+            // Admin-specific UI elements
+            const adminOnlyActionsDiv = document.getElementById('admin-only-actions');
+            // const isAdmin = mainContentDataDiv ? mainContentDataDiv.dataset.isAdmin === 'true' : false; // REMOVE REDECLARATION
+
+            if (isAdmin && adminOnlyActionsDiv) { // REUSE isAdmin from above
+                adminOnlyActionsDiv.style.display = 'block'; // Show admin buttons
+                
+                const exportBtn = document.getElementById('export-system-defaults-btn');
+                if (exportBtn) {
+                    exportBtn.addEventListener('click', async () => {
+                        if (!confirm('确定要将当前右侧面板的AI偏好设置导出为新的系统默认配置吗？这将覆盖之前的系统默认配置。')) {
+                            return;
+                        }
+
+                        const payload = {
+                            ai_bg_color_r: parseInt(bgColorR.value) || 0,
+                            ai_bg_color_g: parseInt(bgColorG.value) || 0,
+                            ai_bg_color_b: parseInt(bgColorB.value) || 0,
+                            ai_font_color_r: parseInt(fontColorR.value) || 0,
+                            ai_font_color_g: parseInt(fontColorG.value) || 0,
+                            ai_font_color_b: parseInt(fontColorB.value) || 0,
+                            retry_prompt_template: retryPromptTextarea.value,
+                            enable_markdown_prompt: enableMarkdownCheckbox.checked,
+                            markdown_prompt_template: markdownPromptTextarea.value
+                        };
+                        showStatusMessage('正在导出系统默认配置...', 'info');
+                        try {
+                            const response = await fetch('/api/admin/ai-preferences/system-default', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+                            const result = await response.json();
+                            if (!response.ok) {
+                                throw new Error(result.error || `导出失败: ${response.status}`);
+                            }
+                            showStatusMessage(result.message || '系统默认配置已更新。', 'success');
+                        } catch (error) {
+                            console.error('导出系统默认配置时出错:', error);
+                            showStatusMessage(`导出错误: ${error.message}`, 'error');
+                        }
+                    });
+                }
+            }
+
         });
     </script>
 

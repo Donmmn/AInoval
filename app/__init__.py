@@ -50,6 +50,7 @@ def create_app(config_class=Config):
     # 取消注释自动创建管理员的逻辑
     with app.app_context():
         from .models.user import User # 移到 app_context内部以避免循环导入问题
+        # Temporarily comment out the user query and default admin creation during migration
         if User.query.first() is None:
             print("No users found. Creating default admin user.")
             default_admin = User(
@@ -65,6 +66,7 @@ def create_app(config_class=Config):
             except Exception as e:
                 db.session.rollback()
                 print(f"Error creating default admin user: {e}")
+        # pass # Add pass if the entire block is commented out and it's the only thing in the with block
 
     # Register scheduled tasks after app is fully initialized and blueprints are registered
     # to ensure tasks have access to app context and configurations.

@@ -8,6 +8,8 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime
 from .ai_service import call_ai_service
 from .utils import process_prompt_template # 导入处理函数
+import os # For file path operations
+import json # For JSON handling
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -826,6 +828,12 @@ def generate_prompt_with_template():
             if not final_prompt:
                  return jsonify({'error': 'No template selected and no prompt provided in input_data using key "提示词"'}), 400
 
+        # --- 新增：打印最终提示词到后台日志 ---
+        print(f"\n--- User {user_id_for_log} | Final Prompt for AI Service ID {ai_config.id} ---")
+        print(final_prompt)
+        print("--- End of Final Prompt ---\n")
+        # --- 结束打印 ---
+
         # --- 调用 AI 服务 --- 
         if ai_config.enable_streaming:
             config_details_for_stream = { # ... (remains the same) ...
@@ -1167,3 +1175,150 @@ def get_user_status():
         # 可以根据需要添加更多字段
     }
     return jsonify(user_data)
+
+# --- 新增：用户 AI 偏好设置 API --- 
+@api_bp.route('/user/ai-preferences', methods=['GET'])
+@login_required
+def get_user_ai_preferences():
+    """获取当前用户的 AI 偏好设置。"""
+    # 从 current_user 对象直接获取偏好设置字段
+    # 确保 User 模型中定义的默认值在这里能被正确反映（如果用户未设置过）
+    prefs = {
+        'ai_bg_color_r': current_user.ai_bg_color_r,
+        'ai_bg_color_g': current_user.ai_bg_color_g,
+        'ai_bg_color_b': current_user.ai_bg_color_b,
+        'ai_font_color_r': current_user.ai_font_color_r,
+        'ai_font_color_g': current_user.ai_font_color_g,
+        'ai_font_color_b': current_user.ai_font_color_b,
+        'retry_prompt_template': current_user.retry_prompt_template,
+        'enable_markdown_prompt': current_user.enable_markdown_prompt,
+        'markdown_prompt_template': current_user.markdown_prompt_template
+    }
+    # SQLAlchemy 在加载模型实例时，如果数据库中对应列为 NULL，
+    # 并且模型定义了 default 值，实例的属性会是该 default 值。
+    # 如果数据库中是 NULL 且模型无 default，则属性为 None。
+    # 前端在加载时已处理了 null 的情况，所以这里直接返回模型值即可。
+    return jsonify(prefs), 200
+
+@api_bp.route('/user/ai-preferences', methods=['PUT'])
+@login_required
+def update_user_ai_preferences():
+    """更新当前用户的 AI 偏好设置。"""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Missing data'}), 400
+
+    try:
+        current_user.ai_bg_color_r = data.get('ai_bg_color_r', current_user.ai_bg_color_r)
+        current_user.ai_bg_color_g = data.get('ai_bg_color_g', current_user.ai_bg_color_g)
+        current_user.ai_bg_color_b = data.get('ai_bg_color_b', current_user.ai_bg_color_b)
+        current_user.ai_font_color_r = data.get('ai_font_color_r', current_user.ai_font_color_r)
+        current_user.ai_font_color_g = data.get('ai_font_color_g', current_user.ai_font_color_g)
+        current_user.ai_font_color_b = data.get('ai_font_color_b', current_user.ai_font_color_b)
+        current_user.retry_prompt_template = data.get('retry_prompt_template', current_user.retry_prompt_template)
+        current_user.enable_markdown_prompt = data.get('enable_markdown_prompt', current_user.enable_markdown_prompt)
+        current_user.markdown_prompt_template = data.get('markdown_prompt_template', current_user.markdown_prompt_template)
+        
+        # 确保布尔值正确处理
+        if 'enable_markdown_prompt' in data and isinstance(data['enable_markdown_prompt'], bool):
+            current_user.enable_markdown_prompt = data['enable_markdown_prompt']
+        
+        # 确保颜色值为整数，在0-255之间，如果提供了的话
+        color_fields = [
+            'ai_bg_color_r', 'ai_bg_color_g', 'ai_bg_color_b',
+            'ai_font_color_r', 'ai_font_color_g', 'ai_font_color_b'
+        ]
+        for field in color_fields:
+            if field in data:
+                try:
+                    value = int(data[field])
+                    if not (0 <= value <= 255):
+                        raise ValueError("Color value out of range 0-255")
+                    setattr(current_user, field, value)
+                except (ValueError, TypeError):
+                    # 如果转换失败或类型不对，可以选择忽略、使用默认值或返回错误
+                    # 这里选择忽略，保持该字段的原值，前端应该已经做了校验
+                    print(f"Warning: Invalid value for {field}: {data[field]}. Keeping original.")
+                    pass 
+
+        db.session.commit()
+        return jsonify({'message': 'User AI preferences updated successfully.'}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating user AI preferences for {current_user.username}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# --- 新增：系统默认 AI 偏好设置 API --- 
+SYSTEM_DEFAULTS_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'system_ai_defaults.json')
+
+@api_bp.route('/admin/ai-preferences/system-default', methods=['POST'])
+@login_required
+def set_system_default_ai_preferences():
+    if not current_user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Missing data'}), 400
+    
+    # Basic validation of expected fields (optional, but good practice)
+    expected_keys = [
+        'ai_bg_color_r', 'ai_bg_color_g', 'ai_bg_color_b',
+        'ai_font_color_r', 'ai_font_color_g', 'ai_font_color_b',
+        'retry_prompt_template', 'enable_markdown_prompt', 'markdown_prompt_template'
+    ]
+    if not all(key in data for key in expected_keys):
+        return jsonify({'error': 'Missing some preference keys in data'}), 400
+
+    try:
+        config_dir = os.path.dirname(SYSTEM_DEFAULTS_PATH)
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir)
+            print(f"Created directory: {config_dir}")
+
+        with open(SYSTEM_DEFAULTS_PATH, 'w') as f:
+            json.dump(data, f, indent=4)
+        
+        return jsonify({'message': 'System default AI preferences saved successfully.'}), 200
+    except Exception as e:
+        print(f"Error saving system default AI preferences: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/user/ai-preferences/system-default', methods=['GET'])
+@login_required
+def get_system_default_ai_preferences():
+    try:
+        if os.path.exists(SYSTEM_DEFAULTS_PATH):
+            with open(SYSTEM_DEFAULTS_PATH, 'r') as f:
+                defaults = json.load(f)
+            return jsonify(defaults), 200
+        else:
+            # If file doesn't exist, return model defaults
+            # These are the same defaults defined in the User model
+            model_defaults = {
+                'ai_bg_color_r': 255,
+                'ai_bg_color_g': 240,
+                'ai_bg_color_b': 240,
+                'ai_font_color_r': 51,
+                'ai_font_color_g': 51,
+                'ai_font_color_b': 51,
+                'retry_prompt_template': '',
+                'enable_markdown_prompt': False,
+                'markdown_prompt_template': ''
+            }
+            return jsonify(model_defaults), 200 # Or 404 if you prefer to indicate 'not set by admin'
+    except Exception as e:
+        print(f"Error loading system default AI preferences: {e}")
+        # Fallback to model defaults on error too
+        model_defaults = {
+            'ai_bg_color_r': 255,
+            'ai_bg_color_g': 240,
+            'ai_bg_color_b': 240,
+            'ai_font_color_r': 51,
+            'ai_font_color_g': 51,
+            'ai_font_color_b': 51,
+            'retry_prompt_template': '',
+            'enable_markdown_prompt': False,
+            'markdown_prompt_template': ''
+        }
+        return jsonify(model_defaults), 200 # Or 500 if a server error should be explicit

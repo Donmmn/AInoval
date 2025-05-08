@@ -17,6 +17,18 @@ class User(UserMixin, db.Model):
     # --- 可选：添加关系以方便访问活动配置对象 (如果需要) ---
     active_ai_service = db.relationship('AIService', foreign_keys=[active_ai_service_id], post_update=True)
 
+    # --- 新增：用户 AI 偏好设置 ---
+    ai_bg_color_r = db.Column(db.Integer, nullable=True, default=255)
+    ai_bg_color_g = db.Column(db.Integer, nullable=True, default=240)
+    ai_bg_color_b = db.Column(db.Integer, nullable=True, default=240)
+    ai_font_color_r = db.Column(db.Integer, nullable=True, default=51)
+    ai_font_color_g = db.Column(db.Integer, nullable=True, default=51)
+    ai_font_color_b = db.Column(db.Integer, nullable=True, default=51)
+    retry_prompt_template = db.Column(db.Text, nullable=True)
+    enable_markdown_prompt = db.Column(db.Boolean, nullable=True, default=False)
+    markdown_prompt_template = db.Column(db.Text, nullable=True)
+    # --- 结束：用户 AI 偏好设置 ---
+
     # 与 Group 的多对多关系
     groups = db.relationship('Group', 
                              secondary=user_group_association, 
