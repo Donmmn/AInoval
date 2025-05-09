@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  web:
+    # 从 Docker Hub 或其他镜像仓库拉取预构建的镜像
+    # 请确保将 'your-dockerhub-username/your-app-name:latest' 替换为你实际的镜像名称和标签
+    image: your-dockerhub-username/your-app-name:latest
+    
+    container_name: novel-editor-web # 给容器起一个名字
+    
+    ports:
+      - "5000:5000" # 将宿主机的 5000 端口映射到容器内的 5000 端口 (与 Dockerfile 中 EXPOSE 的端口一致)
+      
+    volumes:
+      # 将宿主机的 ./instance 目录挂载到容器内的 /app/instance 目录
+      # 这对于持久化 SQLite 数据库或实例特定的配置文件很有用
+      - ./instance:/app/instance 
+      # 将宿主机的 ./logs 目录挂载到容器内的 /app/logs 目录
+      # 这对于持久化应用日志很有用
+      - ./logs:/app/logs
+      
+    environment:
+      # 在这里可以设置应用需要的环境变量
+      # 例如:
+      # FLASK_APP: run.py
+      # FLASK_ENV: production # 或 development
+      # DATABASE_URL: sqlite:////app/instance/your_database.db
+      PYTHONUNBUFFERED: 1 # 确保 Python 日志直接输出，与 Dockerfile 中一致
+
+    restart: unless-stopped # 配置容器的重启策略
+
+# 可选：定义命名的卷，如果不想使用绑定挂载 (./instance)
+# volumes:
+#   instance_data:
+#   log_data:
+# 然后在 service 中使用：
+#      - instance_data:/app/instance
+#      - log_data:/app/logs 
